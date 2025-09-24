@@ -40,6 +40,7 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [results, setResults] = useState<string[]>([]);
+  const [safetyCheckDisabled, setSafetyCheckDisabled] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const hasImages = images.length > 0;
@@ -150,6 +151,7 @@ export default function App() {
       originalName: image.originalName,
     }));
     formData.append("instructions", JSON.stringify(instructionsPayload));
+    formData.append("disableSafetyFilter", String(safetyCheckDisabled));
 
     images.forEach((image) => {
       const serverFileName = `${image.id}__${image.originalName}`;
@@ -286,6 +288,17 @@ export default function App() {
               onChange={(event) => setNegativePrompt(event.target.value)}
               placeholder="Optional: list any elements Seedream should avoid."
             />
+            <label className="safety-toggle">
+              <input
+                type="checkbox"
+                checked={safetyCheckDisabled}
+                onChange={(event) => setSafetyCheckDisabled(event.target.checked)}
+              />
+              <div>
+                <strong>Disable safety filter</strong>
+                <span>Allow NSFW generations when supported by the model.</span>
+              </div>
+            </label>
           </div>
 
           <div className="actions">

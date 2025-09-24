@@ -58,6 +58,19 @@ const resolveInstructions = (raw) => {
   }
 };
 
+const parseBoolean = (value) => {
+  if (value === undefined || value === null) {
+    return false;
+  }
+
+  if (Array.isArray(value)) {
+    return value.some((entry) => parseBoolean(entry));
+  }
+
+  const normalized = value.toString().trim().toLowerCase();
+  return ["true", "1", "yes", "on"].includes(normalized);
+};
+
 app.get("/api/health", (_req, res) => {
   res.json({
     status: "ok",
@@ -69,6 +82,7 @@ app.post("/api/generate", upload.array("images"), async (req, res) => {
   const prompt = (req.body?.prompt || "").toString().trim();
   const negativePrompt = (req.body?.negativePrompt || "").toString().trim();
   const instructionsRaw = req.body?.instructions;
+  const disableSafetyFilter = parseBoolean(req.body?.disableSafetyFilter);
   const files = req.files || [];
 
   if (!prompt) {
@@ -132,6 +146,10 @@ app.post("/api/generate", upload.array("images"), async (req, res) => {
 
     if (negativePrompt) {
       inputPayload.negative_prompt = negativePrompt;
+    }
+
+    if (disableSafetyFilter) {
+      inputPayload.disable_safety_filter = true;
     }
 
     const output = await replicate.run(replicateVersion, {

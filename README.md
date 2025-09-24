@@ -7,6 +7,7 @@ A modern web experience for orchestrating multi-reference prompts with [Seedream
 - **Drag-and-drop gallery** – upload multiple reference images, preview them instantly, and remove any you no longer need.
 - **Per-image guidance** – add a short instruction for every image so Seedream-4 knows exactly what to extract.
 - **Creative brief composer** – craft a primary prompt and optional negative prompt inside an elegant, distraction-free workspace.
+- **Safety override** – optionally disable Seedream’s NSFW filter before sending a run when you need unrestricted generations.
 - **Result viewer** – display generated images or videos, with quick links to open the assets in a new tab.
 - **Secure Replicate bridge** – the back-end accepts files via `multipart/form-data`, converts them to data URIs, and forwards them using Replicate’s official SDK.
 
