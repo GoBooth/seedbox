@@ -71,6 +71,24 @@ const parseBoolean = (value) => {
   return ["true", "1", "yes", "on"].includes(normalized);
 };
 
+const resolveErrorMessage = (error) => {
+  const nestedMessage = error?.error?.message;
+  if (nestedMessage !== undefined && nestedMessage !== null) {
+    return nestedMessage.toString();
+  }
+
+  const directMessage = error?.message;
+  if (directMessage !== undefined && directMessage !== null) {
+    return directMessage.toString();
+  }
+
+  if (typeof error === "string") {
+    return error;
+  }
+
+  return "Unable to reach Replicate";
+};
+
 app.get("/api/health", (_req, res) => {
   res.json({
     status: "ok",
@@ -163,11 +181,7 @@ app.post("/api/generate", upload.array("images"), async (req, res) => {
     });
   } catch (error) {
     console.error("Seedream generation failed", error);
-    const message =
-      (error?.error?.message ||
-        error?.message ||
-        (typeof error === "string" ? error : null) ||
-        "Unable to reach Replicate") as string;
+    const message = resolveErrorMessage(error);
 
     res.status(500).json({ error: message });
   }
