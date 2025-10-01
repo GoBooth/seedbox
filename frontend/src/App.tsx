@@ -327,6 +327,23 @@ export default function App() {
 
     return [];
   });
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      const payload = results.slice(0, 60).map((result) => ({
+        id: result.id,
+        url: result.url,
+        provider: result.provider,
+        model: result.model,
+        createdAt: result.createdAt,
+      }));
+      window.localStorage.setItem(RESULTS_STORAGE_KEY, JSON.stringify(payload));
+    } catch (error) {
+      console.warn("Unable to persist generated results", error);
+    }
+  }, [results]);
   const [promptLibrary, setPromptLibrary] = useState<SavedPrompt[]>(() => {
     if (typeof window === "undefined") {
       return [];
@@ -1082,6 +1099,7 @@ export default function App() {
         const providerValue = payload?.provider || provider;
         const now = Date.now();
         const providerResults = outputData.map((url, index) => ({
+          id: `${providerValue}-${now}-${index}-${Math.random().toString(16).slice(2)}`,
           url,
           provider: providerValue,
           model: payload?.model ?? null,
@@ -1694,18 +1712,65 @@ export default function App() {
               <span className="tag">Output</span>
               Generated media
             </h2>
+            <div className="results-toolbar" aria-label="Result actions">
+              <label className="results-toolbar-select">
+                <input
+                  type="checkbox"
+                  checked={allResultsSelected}
+                  onChange={handleToggleSelectAllResults}
+                  disabled={!results.length}
+                  aria-label={allResultsSelected ? "Clear selection" : "Select all generated media"}
+                />
+                <span>{allResultsSelected ? "Clear selection" : "Select all"}</span>
+              </label>
+              <div className="results-toolbar-actions">
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={handleDownloadSelectedResults}
+                  disabled={!hasSelectedResults || isDownloading}
+                >
+                  {isDownloading ? "Downloading…" : "Download selected"}
+                </button>
+                <button
+                  type="button"
+                  className="ghost-button danger"
+                  onClick={handleRemoveSelectedResults}
+                  disabled={!hasSelectedResults}
+                >
+                  Remove selected
+                </button>
+              </div>
+            </div>
             <div className="results-grid">
               {results.map((item, index) => {
                 const lower = item.url.toLowerCase();
                 const isVideo = lower.includes(".mp4") || lower.includes("video");
                 const providerLabelText = getProviderLabel(item.provider);
                 const label = `${providerLabelText} · Output ${index + 1}`;
+                const isSelected = selectedResultIds.has(item.id);
 
                 return (
-                  <div
-                    className="generated-card"
-                    key={`${item.provider}-${item.createdAt}-${index}`}
-                  >
+                  <div className="generated-card" key={item.id}>
+                    <div className="result-select-bar">
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleResultSelection(item.id)}
+                          aria-label={`Select ${label}`}
+                        />
+                        <span>Select</span>
+                      </label>
+                      <button
+                        type="button"
+                        className="ghost-button danger"
+                        onClick={() => handleRemoveResult(item.id)}
+                        aria-label={`Remove ${label}`}
+                      >
+                        Remove
+                      </button>
+                    </div>
                     {isVideo ? (
                       <video
                         src={item.url}
