@@ -32,6 +32,7 @@ type GeneratedResult = {
   url: string;
   provider: string;
   model?: string | null;
+  basename: string;
   createdAt: number;
 };
 
@@ -234,6 +235,7 @@ export default function App() {
               url: entry,
               provider: "replicate",
               model: null,
+              basename: "seedream-output",
               createdAt: now - index,
             });
             continue;
@@ -245,11 +247,17 @@ export default function App() {
               typeof candidateId === "string" && candidateId.trim().length
                 ? candidateId
                 : `restored-${now}-${index}-${Math.random().toString(16).slice(2)}`;
+            const candidateBase = (entry as { basename?: unknown }).basename;
+            const restoredBase =
+              typeof candidateBase === "string" && candidateBase.trim().length
+                ? candidateBase
+                : "seedream-output";
             normalized.push({
               id: restoredId,
               url: entry.url,
               provider: typeof entry.provider === "string" ? entry.provider : "replicate",
               model: typeof entry.model === "string" ? entry.model : null,
+              basename: restoredBase,
               createdAt: typeof entry.createdAt === "number" ? entry.createdAt : now - index,
             });
           }
@@ -477,6 +485,16 @@ export default function App() {
     });
   };
 
+  const sanitizeBasename = (name: string) => {
+    const trimmed = name.replace(/\.[^/.]+$/, "").trim();
+    if (!trimmed) {
+      return "seedream-output";
+    }
+    const cleaned = trimmed.replace(/[^a-zA-Z0-9-_]+/g, "_");
+    const collapsed = cleaned.replace(/_+/g, "_").replace(/^_+|_+$/g, "");
+    return collapsed || "seedream-output";
+  };
+
   const guessFileExtension = (url: string, mimeType?: string) => {
     if (mimeType) {
       const lower = mimeType.toLowerCase();
@@ -502,8 +520,9 @@ export default function App() {
   };
 
   const createDownloadFilename = (result: GeneratedResult, extension: string, index: number) => {
+    const base = result.basename || "seedream-output";
     const timestamp = new Date(result.createdAt).toISOString().replace(/[:.]/g, "-");
-    return `seedream-${result.provider}-${timestamp}-${index + 1}.${extension}`;
+    return `${base}-${result.provider}-${timestamp}-${index + 1}.${extension}`;
   };
 
   const downloadBlob = (blob: Blob, filename: string) => {
@@ -1021,6 +1040,13 @@ export default function App() {
       progressPrefix,
     }: { promptIdForThumbnail?: string | null; progressPrefix?: string } = {},
   ) => {
+    const primaryName = selectedImages[0]?.originalName || "seedream-output";
+    const baseCandidate =
+      selectedImages.length === 1
+        ? primaryName
+        : `${primaryName.replace(/\.[^/.]+$/, "") || primaryName}-set`;
+    const resultBasename = sanitizeBasename(baseCandidate);
+
     const instructionsPayload = selectedImages.map((image) => ({
       id: image.id,
       instruction: image.instruction,
@@ -1099,10 +1125,11 @@ export default function App() {
         const providerValue = payload?.provider || provider;
         const now = Date.now();
         const providerResults = outputData.map((url, index) => ({
-          id: `${providerValue}-${now}-${index}-${Math.random().toString(16).slice(2)}`,
+          id: `${providerValue}-${resultBasename}-${now}-${index}-${Math.random().toString(16).slice(2)}`,
           url,
           provider: providerValue,
           model: payload?.model ?? null,
+          basename: resultBasename,
           createdAt: now - index,
         }));
 
