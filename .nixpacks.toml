@@ -1,0 +1,13 @@
+project_dir = "server"
+
+[variables]
+NPM_CONFIG_PRODUCTION = "false"
+
+[phases.install]
+cmds = ["npm install"]
+
+[phases.build]
+cmds = ["npm run build:client"]
+
+[start]
+cmd = "npm start"
