@@ -10,7 +10,7 @@ A modern web experience for orchestrating multi-reference prompts with [Seedream
 - **Instruction clipboard** – copy/paste per-image guidance between references and keep notes synced locally.
 - **Remote import** – paste a hosted image URL to pull it straight into the reference panel.
 - **Character library** – name and store frequently used references for one-click reuse.
-- **Provider switcher** – run the same prompt through Replicate’s Seedream-4 and fal.ai’s Seedream Edit for quick side-by-side comparisons.
+- **Provider switcher** – compare Replicate’s Seedream-4, fal.ai’s Seedream Edit, and the Nano Banana (Gemini) renderer side by side with the same prompt.
 - **Advanced fal.ai controls** – supply a deterministic seed and toggle synchronous delivery when calling Seedream Edit.
 - **Creative brief composer** – craft a primary prompt and optional negative prompt inside an elegant, distraction-free workspace.
 - **Safety override** – optionally disable Seedream’s NSFW filter before sending a run when you need unrestricted generations.
@@ -52,6 +52,8 @@ server/     # Express API proxy with Replicate integration
    - `SEEDREAM4_MODEL_VERSION` – optional override for the model version. You can supply a version hash (`bytedance/seedream-4:<hash>`) or rely on the default slug `bytedance/seedream-4` to use the latest release.
    - `FAL_KEY` – optional fal.ai API key (required only if you switch the provider to fal.ai).
    - `FAL_MODEL` – optional fal.ai model identifier (defaults to `fal-ai/bytedance/seedream/v4/edit`).
+   - `GEMINI_API_KEY` – optional Google Gemini API key (required to enable the Nano Banana provider).
+   - `NANO_BANANA_MODEL` – optional Gemini model identifier (defaults to `gemini-1.5-flash`).
 
 3. **Run the development servers**
 
@@ -71,7 +73,7 @@ server/     # Express API proxy with Replicate integration
 
    The front-end proxies `/api` requests to `http://localhost:5001` by default. Set `VITE_API_BASE_URL` in `frontend/.env` if you deploy the back-end elsewhere.
 
-   > ✅  Select one or more providers in the "Generation settings" panel to compare outputs from Replicate and fal.ai with the same prompt.
+   > ✅  Select one or more providers in the "Generation settings" panel to compare outputs from Replicate, fal.ai, and Nano Banana with the same prompt.
 
    > ✅  Want to sanity-check your Replicate token? With the server running, open `http://localhost:5001/demo` for a lightweight UI that posts the quickstart prompt straight to the API.
 
@@ -97,8 +99,16 @@ server/     # Express API proxy with Replicate integration
 - Update `vite.config.ts` proxy settings if your API runs on a different port.
 - Customize the UI theme by editing `frontend/src/App.css`.
 - Fine-tune Seedream requests from the UI—resolution, aspect ratio, sequential mode, and maximum outputs map directly to the Replicate options.
-- Tick one or both providers in the UI (Replicate, fal.ai); populate `FAL_KEY` (and optionally `FAL_MODEL`) before enabling fal.ai.
+- Tick any combination of providers in the UI (Replicate, fal.ai, Nano Banana); supply the corresponding credentials (`REPLICATE_API_TOKEN`, `FAL_KEY`, `GEMINI_API_KEY`) before turning them on.
 - The instruction clipboard stores per-image notes locally so you can reuse guidance across uploads.
 - Import remote images via the URL field in Step 1; the server fetches them and enforces the 10MB limit.
 - The server normalises reference images to `MAX_IMAGE_DIMENSION` (default 2048px) so Seedream always receives compatible sizes.
 - Saved characters let you name references for reuse; they live in your browser storage and can be reinserted with one click.
+
+## Deploying to Railway
+
+1. Push this repository to GitHub (or another Git provider) and create a new project on [Railway](https://railway.app/).
+2. When Railway asks which service to deploy, choose the `server/` directory as the root. The provided `postinstall` script automatically installs the frontend dependencies and builds the production bundle.
+3. Leave the install and start commands as their defaults (`npm install`, `npm start`). The Express server serves the compiled `frontend/dist` assets directly, so no extra static hosting is required.
+4. Add the required environment variables in the Railway dashboard (`REPLICATE_API_TOKEN`, `XAI_API_KEY`, optional `FAL_KEY`, `GEMINI_API_KEY`, etc.). Railway will inject `PORT`, which the server already honours.
+5. Deploy the service. Once the build completes, the same URL will host the API (`/api/...`) and the React client.

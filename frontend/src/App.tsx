@@ -89,6 +89,7 @@ const PROMPT_LIBRARY_STORAGE_KEY = "seedream.prompts";
 const providerOptions = [
   { value: "replicate", label: "Replicate · Seedream-4" },
   { value: "fal", label: "fal.ai · Seedream Edit" },
+  { value: "nano-banana", label: "Nano Banana · Gemini Flash" },
 ];
 
 const INSTRUCTION_STORAGE_KEY = "seedream.instructions";
@@ -964,11 +965,28 @@ export default function App() {
   const importResultAsReference = async (result: GeneratedResult) => {
     try {
       setStatusMessage(`Importing from ${getProviderLabel(result.provider)}…`);
-      const response = await fetch(result.url, { mode: "cors" });
-      const blob = await response.blob();
-      const extension = blob.type.split("/")[1] || "png";
-      const filename = `${result.provider}-output-${Date.now()}.${extension}`;
-      const file = new File([blob], filename, { type: blob.type, lastModified: Date.now() });
+
+      let file: File;
+      if (result.url.startsWith("data:")) {
+        const match = result.url.match(/^data:([^;]+);base64,/);
+        const mimeType = match?.[1] || "image/png";
+        const extension = guessFileExtension(result.url, mimeType);
+        const filename = `${result.provider}-output-${Date.now()}.${extension}`;
+        file = await dataUriToFile(result.url, filename, mimeType);
+      } else {
+        const response = await fetch(result.url, { mode: "cors" });
+        if (!response.ok) {
+          throw new Error(`Unable to fetch generated asset (status ${response.status})`);
+        }
+        const blob = await response.blob();
+        const mimeType = blob.type || "image/png";
+        const extension = guessFileExtension(result.url, mimeType);
+        const filename = `${result.provider}-output-${Date.now()}.${extension}`;
+        file = new File([blob], filename, {
+          type: mimeType,
+          lastModified: Date.now(),
+        });
+      }
 
       const uploaded = createUploadedImage(file, instructionStore);
 
@@ -1519,7 +1537,7 @@ export default function App() {
                     })}
                   </div>
                   <span className="field-hint">
-                    Replicate handles full generations; fal.ai focuses on Seedream edits with the same refs.
+                    Replicate handles full generations; fal.ai focuses on Seedream edits; Nano Banana taps Google Gemini for concept renders (references optional).
                   </span>
                 </div>
 
