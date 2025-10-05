@@ -32,6 +32,7 @@ type GeneratedResult = {
   url: string;
   provider: string;
   model?: string | null;
+  basename: string;
   createdAt: number;
 };
 
@@ -88,6 +89,7 @@ const PROMPT_LIBRARY_STORAGE_KEY = "seedream.prompts";
 const providerOptions = [
   { value: "replicate", label: "Replicate · Seedream-4" },
   { value: "fal", label: "fal.ai · Seedream Edit" },
+  { value: "nano-banana", label: "Nano Banana · Gemini Flash" },
 ];
 
 const INSTRUCTION_STORAGE_KEY = "seedream.instructions";
@@ -234,6 +236,7 @@ export default function App() {
               url: entry,
               provider: "replicate",
               model: null,
+              basename: "seedream-output",
               createdAt: now - index,
             });
             continue;
@@ -245,11 +248,17 @@ export default function App() {
               typeof candidateId === "string" && candidateId.trim().length
                 ? candidateId
                 : `restored-${now}-${index}-${Math.random().toString(16).slice(2)}`;
+            const candidateBase = (entry as { basename?: unknown }).basename;
+            const restoredBase =
+              typeof candidateBase === "string" && candidateBase.trim().length
+                ? candidateBase
+                : "seedream-output";
             normalized.push({
               id: restoredId,
               url: entry.url,
               provider: typeof entry.provider === "string" ? entry.provider : "replicate",
               model: typeof entry.model === "string" ? entry.model : null,
+              basename: restoredBase,
               createdAt: typeof entry.createdAt === "number" ? entry.createdAt : now - index,
             });
           }
@@ -477,6 +486,16 @@ export default function App() {
     });
   };
 
+  const sanitizeBasename = (name: string) => {
+    const trimmed = name.replace(/\.[^/.]+$/, "").trim();
+    if (!trimmed) {
+      return "seedream-output";
+    }
+    const cleaned = trimmed.replace(/[^a-zA-Z0-9-_]+/g, "_");
+    const collapsed = cleaned.replace(/_+/g, "_").replace(/^_+|_+$/g, "");
+    return collapsed || "seedream-output";
+  };
+
   const guessFileExtension = (url: string, mimeType?: string) => {
     if (mimeType) {
       const lower = mimeType.toLowerCase();
@@ -502,8 +521,9 @@ export default function App() {
   };
 
   const createDownloadFilename = (result: GeneratedResult, extension: string, index: number) => {
+    const base = result.basename || "seedream-output";
     const timestamp = new Date(result.createdAt).toISOString().replace(/[:.]/g, "-");
-    return `seedream-${result.provider}-${timestamp}-${index + 1}.${extension}`;
+    return `${base}-${result.provider}-${timestamp}-${index + 1}.${extension}`;
   };
 
   const downloadBlob = (blob: Blob, filename: string) => {
@@ -945,11 +965,28 @@ export default function App() {
   const importResultAsReference = async (result: GeneratedResult) => {
     try {
       setStatusMessage(`Importing from ${getProviderLabel(result.provider)}…`);
-      const response = await fetch(result.url, { mode: "cors" });
-      const blob = await response.blob();
-      const extension = blob.type.split("/")[1] || "png";
-      const filename = `${result.provider}-output-${Date.now()}.${extension}`;
-      const file = new File([blob], filename, { type: blob.type, lastModified: Date.now() });
+
+      let file: File;
+      if (result.url.startsWith("data:")) {
+        const match = result.url.match(/^data:([^;]+);base64,/);
+        const mimeType = match?.[1] || "image/png";
+        const extension = guessFileExtension(result.url, mimeType);
+        const filename = `${result.provider}-output-${Date.now()}.${extension}`;
+        file = await dataUriToFile(result.url, filename, mimeType);
+      } else {
+        const response = await fetch(result.url, { mode: "cors" });
+        if (!response.ok) {
+          throw new Error(`Unable to fetch generated asset (status ${response.status})`);
+        }
+        const blob = await response.blob();
+        const mimeType = blob.type || "image/png";
+        const extension = guessFileExtension(result.url, mimeType);
+        const filename = `${result.provider}-output-${Date.now()}.${extension}`;
+        file = new File([blob], filename, {
+          type: mimeType,
+          lastModified: Date.now(),
+        });
+      }
 
       const uploaded = createUploadedImage(file, instructionStore);
 
@@ -1021,6 +1058,13 @@ export default function App() {
       progressPrefix,
     }: { promptIdForThumbnail?: string | null; progressPrefix?: string } = {},
   ) => {
+    const primaryName = selectedImages[0]?.originalName || "seedream-output";
+    const baseCandidate =
+      selectedImages.length === 1
+        ? primaryName
+        : `${primaryName.replace(/\.[^/.]+$/, "") || primaryName}-set`;
+    const resultBasename = sanitizeBasename(baseCandidate);
+
     const instructionsPayload = selectedImages.map((image) => ({
       id: image.id,
       instruction: image.instruction,
@@ -1099,10 +1143,11 @@ export default function App() {
         const providerValue = payload?.provider || provider;
         const now = Date.now();
         const providerResults = outputData.map((url, index) => ({
-          id: `${providerValue}-${now}-${index}-${Math.random().toString(16).slice(2)}`,
+          id: `${providerValue}-${resultBasename}-${now}-${index}-${Math.random().toString(16).slice(2)}`,
           url,
           provider: providerValue,
           model: payload?.model ?? null,
+          basename: resultBasename,
           createdAt: now - index,
         }));
 
@@ -1492,7 +1537,7 @@ export default function App() {
                     })}
                   </div>
                   <span className="field-hint">
-                    Replicate handles full generations; fal.ai focuses on Seedream edits with the same refs.
+                    Replicate handles full generations; fal.ai focuses on Seedream edits; Nano Banana taps Google Gemini for concept renders (references optional).
                   </span>
                 </div>
 

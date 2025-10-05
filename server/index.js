@@ -1,16 +1,23 @@
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
+import fs from "fs";
 import multer from "multer";
+import path from "path";
 import Replicate from "replicate";
 import sharp from "sharp";
 import { fal } from "@fal-ai/client";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Blob } from "buffer";
+import { fileURLToPath } from "url";
 
 dotenv.config();
 
 const app = express();
 const port = parseInt(process.env.PORT || "5002", 10);
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
   .split(",")
@@ -102,6 +109,7 @@ const parseBoolean = (value) => {
 
 const defaultModelSlug = "bytedance/seedream-4";
 const defaultGrokModel = "grok-4-fast";
+const defaultNanoBananaModel = "gemini-1.5-flash";
 const grokApiUrl = process.env.GROK_API_BASE_URL || "https://api.x.ai/v1/chat/completions";
 const FAL_SIZE_PRESETS = {
   "1K": 1024,
@@ -131,6 +139,7 @@ const parseModelSlug = (slug) => {
 let cachedModelIdentifier = null;
 let cachedModelSource = null;
 let falConfigured = false;
+let nanoBananaClient = null;
 
 const computeFalImageSize = (sizeOption, aspectRatio, customWidth, customHeight) => {
   const clampDimension = (value) => Math.min(Math.max(Math.round(value), 1024), 4096);
@@ -208,6 +217,22 @@ const dataUriToBlob = (dataUri) => {
   };
 };
 
+const parseDataUri = (dataUri) => {
+  if (typeof dataUri !== "string" || !dataUri.startsWith("data:")) {
+    throw new Error("Invalid data URI");
+  }
+
+  const match = dataUri.match(/^data:(.+);base64,(.+)$/);
+  if (!match) {
+    throw new Error("Unsupported data URI format");
+  }
+
+  return {
+    mimeType: match[1] || "application/octet-stream",
+    base64: match[2],
+  };
+};
+
 const uploadReferenceToFal = async (falClient, reference) => {
   try {
     const { blob } = dataUriToBlob(reference.dataUri);
@@ -231,6 +256,121 @@ const ensureFal = () => {
   }
 
   return fal;
+};
+
+const ensureNanoBananaClient = () => {
+  const apiKey =
+    process.env.NANO_BANANA_API_KEY ||
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY is not set");
+  }
+
+  if (!nanoBananaClient) {
+    nanoBananaClient = new GoogleGenerativeAI(apiKey);
+  }
+
+  const model = process.env.NANO_BANANA_MODEL || defaultNanoBananaModel;
+
+  return {
+    client: nanoBananaClient,
+    model,
+  };
+};
+
+const buildNanoBananaParts = ({
+  references,
+  finalPrompt,
+  negativePrompt,
+  sizeOption,
+  aspectRatio,
+  customWidth,
+  customHeight,
+  sequentialSetting,
+  maxImages,
+}) => {
+  const parts = [];
+  const limitedReferences = references.slice(0, 4);
+
+  limitedReferences.forEach((reference, index) => {
+    try {
+      const { mimeType, base64 } = parseDataUri(reference.dataUri);
+      parts.push({ inlineData: { mimeType, data: base64 } });
+      if (reference.prompt) {
+        const label = reference.originalName || `image-${index + 1}`;
+        parts.push({
+          text: `Reference ${index + 1} (${label}): ${reference.prompt}`,
+        });
+      }
+    } catch (error) {
+      console.warn("Skipping reference for Nano Banana provider", error.message || error);
+    }
+  });
+
+  const guidanceNotes = references
+    .map((reference, index) =>
+      reference.prompt
+        ? `Reference ${index + 1} (${reference.originalName || `image-${index + 1}`}): ${reference.prompt}`
+        : null,
+    )
+    .filter(Boolean);
+
+  const promptSegments = [`PRIMARY_PROMPT:\n${finalPrompt}`];
+  if (negativePrompt) {
+    promptSegments.push(`NEGATIVE_PROMPT:\n${negativePrompt}`);
+  }
+  if (guidanceNotes.length) {
+    promptSegments.push(`REFERENCE_GUIDANCE:\n${guidanceNotes.join("\n")}`);
+  }
+
+  if (typeof sizeOption === "string" && sizeOption.trim()) {
+    if (sizeOption.toLowerCase() === "custom" && customWidth && customHeight) {
+      promptSegments.push(`TARGET_RESOLUTION: ${customWidth}x${customHeight}`);
+    } else {
+      promptSegments.push(`TARGET_RESOLUTION: ${sizeOption}`);
+    }
+  }
+
+  if (typeof aspectRatio === "string" && aspectRatio.trim()) {
+    promptSegments.push(`TARGET_ASPECT_RATIO: ${aspectRatio}`);
+  }
+
+  if (sequentialSetting && sequentialSetting !== "disabled") {
+    promptSegments.push(`SEQUENTIAL_MODE: ${sequentialSetting}`);
+  }
+
+  if (maxImages && Number.isFinite(maxImages) && maxImages > 1) {
+    promptSegments.push(`REQUESTED_IMAGE_COUNT: ${maxImages}`);
+  }
+
+  parts.push({ text: promptSegments.join("\n\n") });
+  return parts;
+};
+
+const extractNanoBananaOutputs = (response) => {
+  const inlineImages = [];
+  const textPayloads = [];
+
+  if (!response) {
+    return { inlineImages, textPayloads };
+  }
+
+  const candidates = response.candidates || [];
+  candidates.forEach((candidate) => {
+    const parts = candidate?.content?.parts || [];
+    parts.forEach((part) => {
+      if (part?.inlineData?.data) {
+        const mimeType = part.inlineData.mimeType || "image/png";
+        inlineImages.push(`data:${mimeType};base64,${part.inlineData.data}`);
+      } else if (part?.text) {
+        textPayloads.push(part.text);
+      }
+    });
+  });
+
+  return { inlineImages, textPayloads };
 };
 
 const normalizeOutputUrls = (output) => {
@@ -561,7 +701,7 @@ const coerceNumber = (value) => {
   return Number.isNaN(parsed) ? null : parsed;
 };
 
-const supportedProviders = new Set(["replicate", "fal"]);
+const supportedProviders = new Set(["replicate", "fal", "nano-banana"]);
 
 const normalizeImageBuffer = async (buffer, mimeType) => {
   try {
@@ -1092,6 +1232,58 @@ app.post("/api/generate", upload.array("images"), async (req, res) => {
   const finalPrompt = promptSegments.join("\n\n");
 
   try {
+    if (provider === "nano-banana") {
+      const { client, model } = ensureNanoBananaClient();
+      const nanoParts = buildNanoBananaParts({
+        references,
+        finalPrompt,
+        negativePrompt,
+        sizeOption,
+        aspectRatio,
+        customWidth,
+        customHeight,
+        sequentialSetting,
+        maxImages,
+      });
+
+      const generativeModel = client.getGenerativeModel({ model });
+      const generation = await generativeModel.generateContent({
+        contents: [
+          {
+            role: "user",
+            parts: nanoParts,
+          },
+        ],
+        generationConfig: {
+          temperature: 0.4,
+          responseMimeType: "image/png",
+        },
+      });
+
+      const nanoResponse = await generation.response;
+      const { inlineImages, textPayloads } = extractNanoBananaOutputs(nanoResponse);
+      const output = inlineImages.length
+        ? inlineImages
+        : textPayloads.length
+        ? textPayloads.map((entry) =>
+            `data:text/plain;base64,${Buffer.from(entry, "utf8").toString("base64")}`,
+          )
+        : [];
+
+      if (!output.length) {
+        throw new Error("Nano Banana returned no content");
+      }
+
+      res.json({
+        status: "Nano Banana generation completed",
+        output,
+        prompt: finalPrompt,
+        model,
+        provider,
+      });
+      return;
+    }
+
     if (provider === "replicate") {
       const replicate = ensureReplicate();
       const replicateIdentifier = await resolveModelIdentifier(replicate);
@@ -1279,6 +1471,17 @@ app.post("/api/generate", upload.array("images"), async (req, res) => {
     res.status(500).json({ error: message });
   }
 });
+
+const clientDistPath = path.resolve(__dirname, "../frontend/dist");
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api")) {
+      return next();
+    }
+    res.sendFile(path.join(clientDistPath, "index.html"));
+  });
+}
 
 app.listen(port, () => {
   console.log(`Seedream server listening on port ${port}`);
