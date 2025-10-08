@@ -214,8 +214,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
     if (provider === "nano-banana") {
       try {
         const { apiKey, model, defaultGenerateModel, defaultEditModel } = ensureNanoBananaConfig(env);
-        const effectiveModel =
-          model || (references.length ? defaultEditModel : defaultGenerateModel);
+        const primaryModel = model || (references.length ? defaultEditModel : defaultGenerateModel);
         const parts = buildNanoBananaParts(
           references,
           finalPrompt,
@@ -228,28 +227,73 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
           maxImages,
         );
 
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/${effectiveModel}:generateContent?key=${apiKey}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [
-                {
-                  role: "user",
-                  parts,
-                },
-              ],
-            }),
-          },
+        const legacyCandidates = references.length
+          ? ["models/imagen-3.0-edit", "models/imagen-3.0-generate"]
+          : ["models/imagen-3.0-generate"];
+        const candidateModels = Array.from(
+          new Set([
+            primaryModel,
+            defaultGenerateModel,
+            defaultEditModel,
+            ...legacyCandidates,
+          ].filter(Boolean)),
         );
 
-        if (!response.ok) {
+        let payload: unknown = null;
+        let selectedModel = "";
+        let lastError = "";
+        let lastStatus = 500;
+
+        for (const candidate of candidateModels) {
+          const returnsInlineImage =
+            candidate.startsWith("models/imagen-") || candidate.includes("image");
+
+          const requestPayload: Record<string, unknown> = {
+            contents: [
+              {
+                role: "user",
+                parts,
+              },
+            ],
+          };
+
+          if (!returnsInlineImage) {
+            requestPayload.generationConfig = {
+              responseMimeType: "application/json",
+            };
+          }
+
+          const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/${candidate}:generateContent?key=${apiKey}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(requestPayload),
+            },
+          );
+
+          if (response.ok) {
+            payload = await response.json();
+            selectedModel = candidate;
+            break;
+          }
+
           const text = await response.text().catch(() => response.statusText);
-          return error(`Nano Banana (Gemini) error (${response.status}): ${text}`, 502);
+          lastError = text;
+          lastStatus = response.status;
+
+          if (response.status !== 404) {
+            return error(`Nano Banana (Gemini) error (${response.status}): ${text}`, 502);
+          }
         }
 
-        const payload = await response.json();
+        if (!payload) {
+          return error(
+            `Nano Banana (Gemini) error (${lastStatus}): ${lastError || "Model not available"}`,
+            502,
+          );
+        }
+
         const output = extractNanoBananaOutput(payload);
         if (!output.length) {
           return error("Nano Banana returned no content", 500);
@@ -259,7 +303,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
           status: "Nano Banana generation completed",
           output,
           prompt: finalPrompt,
-          model: effectiveModel,
+          model: selectedModel || primaryModel,
           provider,
         });
       } catch (nanoError) {

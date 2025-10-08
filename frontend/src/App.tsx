@@ -452,6 +452,7 @@ export default function App() {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const activeProviders = selectedProviders.length ? selectedProviders : ["replicate"];
+  const isReplicateActive = activeProviders.includes("replicate");
   const hasImages = images.length > 0;
   const isCustomSize = size === "custom";
   const isSequentialAuto = sequentialMode === "auto";
@@ -1353,17 +1354,20 @@ export default function App() {
 
       formData.append("instructions", JSON.stringify(instructionsPayload));
       formData.append("disableSafetyFilter", String(safetyCheckDisabled));
-      formData.append("size", size);
-      formData.append("aspect_ratio", aspectRatio);
-      formData.append("sequential_image_generation", sequentialMode);
 
-      if (isSequentialAuto) {
-        formData.append("max_images", String(maxImages));
-      }
+      if (provider === "replicate") {
+        formData.append("size", size);
+        formData.append("aspect_ratio", aspectRatio);
+        formData.append("sequential_image_generation", sequentialMode);
 
-      if (isCustomSize) {
-        formData.append("width", String(customWidth));
-        formData.append("height", String(customHeight));
+        if (isSequentialAuto) {
+          formData.append("max_images", String(maxImages));
+        }
+
+        if (isCustomSize) {
+          formData.append("width", String(customWidth));
+          formData.append("height", String(customHeight));
+        }
       }
 
       selectedImages.forEach((image) => {
@@ -1910,122 +1914,126 @@ export default function App() {
                     </button>
                   </div>
                 )}
-                <label>
-                  <span>Resolution</span>
-                  <select value={size} onChange={(event) => setSize(event.target.value)}>
-                    {sizeOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="field-hint">
-                    Choose a predefined resolution or specify custom dimensions below.
-                  </span>
-                </label>
-                <label>
-                  <span>Aspect ratio</span>
-                  <select
-                    value={aspectRatio}
-                    onChange={(event) => setAspectRatio(event.target.value)}
-                  >
-                    {aspectRatioOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="field-hint">
-                    Match the input image or force a cinematic ratio.
-                  </span>
-                </label>
-                <label>
-                  <span>Group generation</span>
-                  <select
-                    value={sequentialMode}
-                    onChange={(event) => {
-                      const nextMode = event.target.value;
-                      setSequentialMode(nextMode);
-                      if (nextMode === "disabled") {
-                        setMaxImages(1);
-                      } else if (maxImages < 2) {
-                        setMaxImages(computeDefaultMaxImages(nextMode));
-                      }
-                    }}
-                  >
-                    {sequentialModes.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="field-hint">
-                    "Auto" lets Seedream produce multiple related frames when it makes sense.
-                  </span>
-                </label>
-                <label>
-                  <span>Max images</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={15}
-                    value={maxImages}
-                    onChange={(event) => {
-                      const next = Number.parseInt(event.target.value, 10);
-                      if (Number.isNaN(next)) {
-                        setMaxImages(1);
-                        return;
-                      }
-                      setMaxImages(Math.min(15, Math.max(1, next)));
-                    }}
-                    disabled={!isSequentialAuto}
-                  />
-                  <span className="field-hint">
-                    Up to 15 outputs when sequential mode is set to auto.
-                  </span>
-                </label>
-                {isCustomSize && (
+                {isReplicateActive && (
                   <>
                     <label>
-                      <span>Width (px)</span>
-                      <input
-                        type="number"
-                        min={1024}
-                        max={4096}
-                        step={64}
-                        value={customWidth}
-                        onChange={(event) => {
-                          const next = Number.parseInt(event.target.value, 10);
-                          if (Number.isNaN(next)) {
-                            return;
-                          }
-                          setCustomWidth(
-                            Math.min(4096, Math.max(1024, Math.round(next / 64) * 64))
-                          );
-                        }}
-                      />
-                      <span className="field-hint">1024 – 4096 pixels</span>
+                      <span>Resolution</span>
+                      <select value={size} onChange={(event) => setSize(event.target.value)}>
+                        {sizeOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="field-hint">
+                        Choose a predefined resolution or specify custom dimensions below.
+                      </span>
                     </label>
                     <label>
-                      <span>Height (px)</span>
+                      <span>Aspect ratio</span>
+                      <select
+                        value={aspectRatio}
+                        onChange={(event) => setAspectRatio(event.target.value)}
+                      >
+                        {aspectRatioOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="field-hint">
+                        Match the input image or force a cinematic ratio.
+                      </span>
+                    </label>
+                    <label>
+                      <span>Group generation</span>
+                      <select
+                        value={sequentialMode}
+                        onChange={(event) => {
+                          const nextMode = event.target.value;
+                          setSequentialMode(nextMode);
+                          if (nextMode === "disabled") {
+                            setMaxImages(1);
+                          } else if (maxImages < 2) {
+                            setMaxImages(computeDefaultMaxImages(nextMode));
+                          }
+                        }}
+                      >
+                        {sequentialModes.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="field-hint">
+                        "Auto" lets Seedream produce multiple related frames when it makes sense.
+                      </span>
+                    </label>
+                    <label>
+                      <span>Max images</span>
                       <input
                         type="number"
-                        min={1024}
-                        max={4096}
-                        step={64}
-                        value={customHeight}
+                        min={1}
+                        max={15}
+                        value={maxImages}
                         onChange={(event) => {
                           const next = Number.parseInt(event.target.value, 10);
                           if (Number.isNaN(next)) {
+                            setMaxImages(1);
                             return;
                           }
-                          setCustomHeight(
-                            Math.min(4096, Math.max(1024, Math.round(next / 64) * 64))
-                          );
+                          setMaxImages(Math.min(15, Math.max(1, next)));
                         }}
+                        disabled={!isSequentialAuto}
                       />
-                      <span className="field-hint">1024 – 4096 pixels</span>
+                      <span className="field-hint">
+                        Up to 15 outputs when sequential mode is set to auto.
+                      </span>
                     </label>
+                    {isCustomSize && (
+                      <>
+                        <label>
+                          <span>Width (px)</span>
+                          <input
+                            type="number"
+                            min={1024}
+                            max={4096}
+                            step={64}
+                            value={customWidth}
+                            onChange={(event) => {
+                              const next = Number.parseInt(event.target.value, 10);
+                              if (Number.isNaN(next)) {
+                                return;
+                              }
+                              setCustomWidth(
+                                Math.min(4096, Math.max(1024, Math.round(next / 64) * 64))
+                              );
+                            }}
+                          />
+                          <span className="field-hint">1024 – 4096 pixels</span>
+                        </label>
+                        <label>
+                          <span>Height (px)</span>
+                          <input
+                            type="number"
+                            min={1024}
+                            max={4096}
+                            step={64}
+                            value={customHeight}
+                            onChange={(event) => {
+                              const next = Number.parseInt(event.target.value, 10);
+                              if (Number.isNaN(next)) {
+                                return;
+                              }
+                              setCustomHeight(
+                                Math.min(4096, Math.max(1024, Math.round(next / 64) * 64))
+                              );
+                            }}
+                          />
+                          <span className="field-hint">1024 – 4096 pixels</span>
+                        </label>
+                      </>
+                    )}
                   </>
                 )}
               </div>

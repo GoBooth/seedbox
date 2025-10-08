@@ -47,8 +47,8 @@ REPLICATE_API_TOKEN=sk-...
 XAI_API_KEY=sk-...
 GEMINI_API_KEY=AIza...
 ENABLE_GEMINI=true
-# Optional override for Gemini model (defaults: models/imagen-3.0-generate / models/imagen-3.0-edit)
-# NANO_BANANA_MODEL=models/imagen-3.0-generate
+# Optional override for Gemini model (default: gemini-2.5-flash-image)
+# NANO_BANANA_MODEL=gemini-2.5-flash-image
 
 # Supabase
 SUPABASE_URL=https://rqmqkaixkrnogqcdvpiu.supabase.co
