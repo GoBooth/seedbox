@@ -241,6 +241,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
               generationConfig: {
                 temperature: 0.4,
                 maxOutputTokens: 768,
+                responseMimeType: "image/png",
               },
             }),
           },
