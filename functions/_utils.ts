@@ -31,7 +31,8 @@ export interface Env {
 const DEFAULT_MODEL_SLUG = "bytedance/seedream-4";
 const DEFAULT_GROK_MODEL = "grok-4-fast";
 const DEFAULT_GROK_URL = "https://api.x.ai/v1/chat/completions";
-const DEFAULT_NANO_BANANA_MODEL = "gemini-1.5-flash-latest"; // default Gemini multimodal model
+const DEFAULT_NANO_BANANA_GENERATE_MODEL = "models/imagen-3.0-generate";
+const DEFAULT_NANO_BANANA_EDIT_MODEL = "models/imagen-3.0-edit";
 
 export const ok = (data: unknown, init: ResponseInit = {}) =>
   Response.json(data, {
@@ -259,8 +260,13 @@ export const ensureNanoBananaConfig = (env: Env) => {
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY is not configured.");
   }
-  const model = env.NANO_BANANA_MODEL || DEFAULT_NANO_BANANA_MODEL;
-  return { apiKey: apiKey.trim(), model };
+  const model = env.NANO_BANANA_MODEL?.trim();
+  return {
+    apiKey: apiKey.trim(),
+    model,
+    defaultGenerateModel: DEFAULT_NANO_BANANA_GENERATE_MODEL,
+    defaultEditModel: DEFAULT_NANO_BANANA_EDIT_MODEL,
+  };
 };
 
 const getSupabaseServiceClient = (env: Env) => {

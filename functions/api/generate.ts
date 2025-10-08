@@ -213,7 +213,9 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
 
     if (provider === "nano-banana") {
       try {
-        const { apiKey, model } = ensureNanoBananaConfig(env);
+        const { apiKey, model, defaultGenerateModel, defaultEditModel } = ensureNanoBananaConfig(env);
+        const effectiveModel =
+          model || (references.length ? defaultEditModel : defaultGenerateModel);
         const parts = buildNanoBananaParts(
           references,
           finalPrompt,
@@ -227,7 +229,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
         );
 
         const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/${effectiveModel}:generateContent?key=${apiKey}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -238,11 +240,6 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
                   parts,
                 },
               ],
-              generationConfig: {
-                temperature: 0.4,
-                maxOutputTokens: 768,
-                responseMimeType: "image/png",
-              },
             }),
           },
         );
@@ -262,7 +259,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
           status: "Nano Banana generation completed",
           output,
           prompt: finalPrompt,
-          model,
+          model: effectiveModel,
           provider,
         });
       } catch (nanoError) {
