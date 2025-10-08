@@ -47,6 +47,8 @@ REPLICATE_API_TOKEN=sk-...
 XAI_API_KEY=sk-...
 GEMINI_API_KEY=AIza...
 ENABLE_GEMINI=true
+# Optional override for Gemini model (default is imagegeneration)
+# NANO_BANANA_MODEL=imagegeneration
 
 # Supabase
 SUPABASE_URL=https://rqmqkaixkrnogqcdvpiu.supabase.co
@@ -127,4 +129,3 @@ All API routes require a valid Supabase access token (the React app attaches it 
 - **Uploads failing** – verify the R2 binding is named `UPLOADS_BUCKET` and the Cloudflare Pages environment has permission to write to the chosen bucket.
 
 Have fun remixing Seedream prompts! Pull requests are welcome—especially to bring back fal.ai editing support or expand per-user settings.
-

@@ -31,7 +31,7 @@ export interface Env {
 const DEFAULT_MODEL_SLUG = "bytedance/seedream-4";
 const DEFAULT_GROK_MODEL = "grok-4-fast";
 const DEFAULT_GROK_URL = "https://api.x.ai/v1/chat/completions";
-const DEFAULT_NANO_BANANA_MODEL = "gemini-1.5-flash";
+const DEFAULT_NANO_BANANA_MODEL = "imagegeneration"; // Gemini Imagen entry point
 
 export const ok = (data: unknown, init: ResponseInit = {}) =>
   Response.json(data, {
