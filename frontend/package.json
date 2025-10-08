@@ -11,18 +11,19 @@
     "build": "tsc && vite build",
     "preview": "vite preview --host",
     "lint": "eslint .",
-    "pages:dev": "wrangler pages dev ../frontend --functions ../functions"
+    "pages:dev": "wrangler pages dev ../frontend"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.74.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.24",
     "@types/react-dom": "^18.2.8",
-    "@vitejs/plugin-react": "^4.2.0",
     "@typescript-eslint/eslint-plugin": "^6.7.0",
     "@typescript-eslint/parser": "^6.7.0",
+    "@vitejs/plugin-react": "^4.2.0",
     "eslint": "^8.53.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.4",

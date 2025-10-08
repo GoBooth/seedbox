@@ -1,3 +1,5 @@
+import { createClient, type User } from "@supabase/supabase-js";
+
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 export const MAX_UPLOAD_SOURCE_BYTES = 40 * 1024 * 1024;
 export const MAX_REMOTE_IMPORT_SOURCE_BYTES = 80 * 1024 * 1024;
@@ -19,6 +21,9 @@ export interface Env {
   GOOGLE_API_KEY?: string;
   NANO_BANANA_MODEL?: string;
   ENABLE_GEMINI?: string;
+  SUPABASE_URL?: string;
+  SUPABASE_ANON_KEY?: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
   UPLOADS_BUCKET: any;
 }
 
@@ -253,5 +258,39 @@ export const ensureNanoBananaConfig = (env: Env) => {
   const model = env.NANO_BANANA_MODEL || DEFAULT_NANO_BANANA_MODEL;
   return { apiKey: apiKey.trim(), model };
 };
+
+const getSupabaseServiceClient = (env: Env) => {
+  const url = requireEnv(env, "SUPABASE_URL");
+  const key = requireEnv(env, "SUPABASE_SERVICE_ROLE_KEY");
+
+  return createClient(url, key, {
+    auth: { persistSession: false },
+    global: { fetch: fetch.bind(globalThis) },
+  });
+};
+
+export const getUserFromRequest = async (request: Request, env: Env): Promise<User> => {
+  const authorization = request.headers.get("Authorization") || "";
+  const token = authorization.replace(/^Bearer\s+/i, "").trim();
+
+  if (!token) {
+    const unauthorized = new Error("Unauthorized: missing access token");
+    (unauthorized as Error & { status?: number }).status = 401;
+    throw unauthorized;
+  }
+
+  const supabase = getSupabaseServiceClient(env);
+  const { data, error: authError } = await supabase.auth.getUser(token);
+
+  if (authError || !data?.user) {
+    const unauthorized = new Error(authError?.message || "Unauthorized");
+    (unauthorized as Error & { status?: number }).status = 401;
+    throw unauthorized;
+  }
+
+  return data.user;
+};
+
+export const getSupabaseForTables = (env: Env) => getSupabaseServiceClient(env);
 
 export { arrayBufferToBase64, requireEnv, sleep, normalizeOutputUrls };

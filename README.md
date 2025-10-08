@@ -1,114 +1,125 @@
-# Seedream Studio
+# Seedream Studio (Cloudflare + Supabase)
 
-A modern web experience for orchestrating multi-reference prompts with [Seedream-4](https://replicate.com/bytedance/seedream-4) on Replicate. The project is split into a Vite + React front-end and an Express-based API proxy that safely forwards uploads to Replicate.
+Seedream Studio lets you combine multiple reference images, add per-image guidance, and produce structured prompts for external providers such as Replicate’s Seedream-4 and a Gemini-powered "Nano Banana" helper. The app is built for Cloudflare Pages: a Vite + React front-end is served as static assets while Pages Functions (Workers) handle file uploads and provider calls. Every reference image is stored in Cloudflare R2 and each user’s preferences live in Supabase via email/password authentication.
 
-## Features
+> fal.ai editing is temporarily disabled in this Workers rewrite. The UI no longer shows that provider until we ship a Workers-friendly upload flow.
 
-- **Drag-and-drop gallery** – upload multiple reference images, preview them instantly, and remove any you no longer need.
-- **Per-image guidance** – add a short instruction for every image so Seedream-4 knows exactly what to extract.
-- **Generation controls** – tweak resolution, aspect ratio, and sequential output directly from the UI.
-- **Instruction clipboard** – copy/paste per-image guidance between references and keep notes synced locally.
-- **Remote import** – paste a hosted image URL to pull it straight into the reference panel.
-- **Character library** – name and store frequently used references for one-click reuse.
-- **Provider switcher** – compare Replicate’s Seedream-4, fal.ai’s Seedream Edit, and the Nano Banana (Gemini) renderer side by side with the same prompt.
-- **Advanced fal.ai controls** – supply a deterministic seed and toggle synchronous delivery when calling Seedream Edit.
-- **Creative brief composer** – craft a primary prompt and optional negative prompt inside an elegant, distraction-free workspace.
-- **Safety override** – optionally disable Seedream’s NSFW filter before sending a run when you need unrestricted generations.
-- **Result viewer** – display generated images or videos, with quick links to open the assets in a new tab.
-- **Secure Replicate bridge** – the back-end accepts files via `multipart/form-data`, converts them to data URIs, and forwards them using Replicate’s official SDK.
-- **One-click demo** – visit `http://localhost:5001/demo` to try a minimal prompt runner that mirrors Replicate’s quickstart example.
-
-## Project structure
+## Repository layout
 
 ```text
-frontend/   # Vite + React (TypeScript) client
-server/     # Express API proxy with Replicate integration
+frontend/        # Vite + React (TypeScript) client
+functions/       # Cloudflare Pages Functions (Workers runtime)
+wrangler.toml    # Pages configuration (build command, R2 binding)
+package.json     # Shared dependencies for the Workers bundle (@supabase/supabase-js)
+.nvmrc           # Pins Node 20 for Wrangler and local tooling
 ```
 
-## Getting started
+## Requirements
 
-1. **Install dependencies** (Node.js 20 or newer)
+- Node.js **20.x** (run `nvm use 20` or `volta install node@20`). Wrangler 4 refuses to run on Node 18.
+- `wrangler` CLI (`npm install -g wrangler`) with `wrangler login` to authorise your Cloudflare account.
+- A Cloudflare R2 bucket (default name in this repo: `seedream-uploads`).
+- A Supabase project with email/password auth enabled.
 
+## Supabase configuration
+
+1. **API keys** – you’ll need the project URL, the public anon key, and the service-role key.
+2. **Database table** – run the following SQL in the Supabase SQL editor to store per-user settings:
+   ```sql
+   create table if not exists public.user_settings (
+     user_id uuid primary key references auth.users(id) on delete cascade,
+     preferred_providers text[] not null default array['replicate'],
+     size_option text not null default '2K',
+     aspect_ratio text not null default 'match_input_image',
+     updated_at timestamptz not null default now()
+   );
+   ```
+3. **Redirect URLs** – add your development origin (`http://localhost:8788`) and production domain to Supabase Auth → URL Configuration.
+
+## Environment variables
+
+Create a `.dev.vars` file in the project root for local development:
+
+```env
+# Cloudflare / Providers
+REPLICATE_API_TOKEN=sk-...
+XAI_API_KEY=sk-...
+GEMINI_API_KEY=AIza...
+ENABLE_GEMINI=true
+
+# Supabase
+SUPABASE_URL=https://rqmqkaixkrnogqcdvpiu.supabase.co
+SUPABASE_ANON_KEY=ey...
+SUPABASE_SERVICE_ROLE_KEY=ey...
+
+# Front-end (exposed via Vite)
+VITE_SUPABASE_URL=https://rqmqkaixkrnogqcdvpiu.supabase.co
+VITE_SUPABASE_ANON_KEY=ey...
+```
+
+In Cloudflare Pages add the same variables (use **Secrets** for sensitive values like `SUPABASE_SERVICE_ROLE_KEY`, `REPLICATE_API_TOKEN`, and `XAI_API_KEY`). Make sure the R2 binding is called **`UPLOADS_BUCKET`** to match the Worker code.
+
+## Local development
+
+1. Install dependencies:
    ```bash
-   cd frontend && npm install
-   cd ../server && npm install
+   npm install          # installs Workers dependencies (@supabase/supabase-js)
+   npm install --prefix frontend
    ```
 
-   > ℹ️  If you encounter registry access restrictions, configure `npm` to use a mirror or install the listed packages manually.
-
-2. **Configure environment variables**
-
-   Copy the server example file and fill in your credentials:
-
+2. Run the full stack with Wrangler (serves the built client + functions):
    ```bash
-   cd server
-   cp .env.example .env
+   wrangler pages dev frontend
+   ```
+   Wrangler runs the build command defined in `wrangler.toml` (`npm install --prefix frontend && npm run build --prefix frontend`) and mounts the functions in `functions/` on <http://127.0.0.1:8788>.
+
+3. Optional – run Vite with hot module replacement in a second terminal and point API calls back to Wrangler:
+   ```bash
+   npm run dev --prefix frontend
+   # frontend/.env
+   VITE_API_BASE_URL=http://127.0.0.1:8788
    ```
 
-   Required values:
+Uploads larger than 10 MB are rejected in the browser before they reach the Worker. Accepted files are saved to R2 under `users/<supabase-user-id>/uploads/...` (remote imports go to `users/<id>/remote/...`).
 
-   - `REPLICATE_API_TOKEN` – your Replicate API token.
-   - `XAI_API_KEY` – your xAI (Grok) API key used for prompt enhancement.
-   - `SEEDREAM4_MODEL_VERSION` – optional override for the model version. You can supply a version hash (`bytedance/seedream-4:<hash>`) or rely on the default slug `bytedance/seedream-4` to use the latest release.
-   - `FAL_KEY` – optional fal.ai API key (required only if you switch the provider to fal.ai).
-   - `FAL_MODEL` – optional fal.ai model identifier (defaults to `fal-ai/bytedance/seedream/v4/edit`).
-   - `GEMINI_API_KEY` – optional Google Gemini API key (required to enable the Nano Banana provider).
-   - `NANO_BANANA_MODEL` – optional Gemini model identifier (defaults to `gemini-1.5-flash`).
+## Deployment
 
-3. **Run the development servers**
+1. Push the repository to GitHub and connect it to a Cloudflare Pages project.
+2. In the Pages build settings use:
+   - **Build command**: `npm install --prefix frontend && npm run build --prefix frontend`
+   - **Build output directory**: `frontend/dist`
+   - **Functions directory**: `functions`
+3. In Pages → Settings → Environment variables add the same variables you defined in `.dev.vars` (Production and Preview). Include both the Workers secrets (`SUPABASE_SERVICE_ROLE_KEY`, `REPLICATE_API_TOKEN`, etc.) and the Vite build variables (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`).
+4. In the same settings screen add the R2 binding: name **`UPLOADS_BUCKET`** and point it at your bucket (e.g., `seedream-uploads`).
+5. Push commits to the tracked branch (`git push`). Pages will rebuild automatically and deploy the new static assets + Workers bundle.
 
-   Start the API proxy:
+You can also deploy directly from the CLI with `wrangler pages deploy frontend` once your account and project are configured.
 
-   ```bash
-   cd server
-   npm run dev
-   ```
+## Runtime endpoints
 
-   In a second terminal, start the Vite dev server:
+All API routes require a valid Supabase access token (the React app attaches it automatically once the user signs in).
 
-   ```bash
-   cd frontend
-   npm run dev
-   ```
+| Route | Method | Description |
+| --- | --- | --- |
+| `/api/generate` | POST | Upload references, merge guidance, and trigger Replicate or Nano Banana generations. |
+| `/api/enhance-prompt` | POST | Expand prompts via xAI Grok. |
+| `/api/advanced-suggestions` | POST | Grok-powered placeholder suggestions for advanced cards. |
+| `/api/advanced-blueprints` | POST | Grok-generated prompt blueprints (recommended + alternatives). |
+| `/api/import-image` | POST | Fetch remote image URLs, validate, and store in R2. |
+| `/api/demo-run` | POST | Minimal Seedream-4 run using the stored references. |
+| `/api/settings` | GET/PUT | Load and persist per-user settings in Supabase. |
+| `/api/health` | GET | Simple health check exposing the configured Seedream version. |
 
-   The front-end proxies `/api` requests to `http://localhost:5001` by default. Set `VITE_API_BASE_URL` in `frontend/.env` if you deploy the back-end elsewhere.
+## Front-end behaviour
 
-   > ✅  Select one or more providers in the "Generation settings" panel to compare outputs from Replicate, fal.ai, and Nano Banana with the same prompt.
+- Users must create an account (Supabase email/password) to access the app. Sign-ups trigger the default Supabase email confirmation flow.
+- Provider selection, default resolution, and aspect ratio sync automatically to Supabase. A “saving…” message appears in the header while updates are in flight.
+- All existing client-side features (drag-and-drop references, saved prompts/characters, advanced prompt composer) continue to work locally and in production.
 
-   > ✅  Want to sanity-check your Replicate token? With the server running, open `http://localhost:5001/demo` for a lightweight UI that posts the quickstart prompt straight to the API.
+## Troubleshooting
 
-4. **Production build**
+- **401 / "Unauthorized"** – ensure the front-end request includes the `Authorization` header. This happens automatically after signing in; if you see it repeatedly, confirm the Supabase service role key is set for the Worker.
+- **Supabase table errors** – the API expects the `user_settings` table described above. Create it manually if you skipped that step.
+- **Uploads failing** – verify the R2 binding is named `UPLOADS_BUCKET` and the Cloudflare Pages environment has permission to write to the chosen bucket.
 
-   ```bash
-   cd frontend
-   npm run build
-   ```
-
-   The compiled assets land in `frontend/dist/`.
-
-## API request flow
-
-1. The React app collects your prompt, negative prompt, and per-image instructions.
-2. Files are sent to the Express server with names encoded as `<uuid>__<original-name>`.
-3. The server converts each image to a `data:` URI, merges your instructions into a structured prompt, and calls Replicate via `replicate.run()`.
-4. Replicate responds with an array of URLs (images or videos) that the front-end displays immediately.
-
-## Notes
-
-- Increase the `multer` limits in `server/index.js` if you need to accept more or larger files.
-- Update `vite.config.ts` proxy settings if your API runs on a different port.
-- Customize the UI theme by editing `frontend/src/App.css`.
-- Fine-tune Seedream requests from the UI—resolution, aspect ratio, sequential mode, and maximum outputs map directly to the Replicate options.
-- Tick any combination of providers in the UI (Replicate, fal.ai, Nano Banana); supply the corresponding credentials (`REPLICATE_API_TOKEN`, `FAL_KEY`, `GEMINI_API_KEY`) before turning them on.
-- The instruction clipboard stores per-image notes locally so you can reuse guidance across uploads.
-- Import remote images via the URL field in Step 1; the server fetches them and enforces the 10MB limit.
-- The server normalises reference images to `MAX_IMAGE_DIMENSION` (default 2048px) so Seedream always receives compatible sizes.
-- Saved characters let you name references for reuse; they live in your browser storage and can be reinserted with one click.
-
-## Deploying to Railway
-
-1. Push this repository to GitHub (or another Git provider) and create a new project on [Railway](https://railway.app/).
-2. When Railway asks which service to deploy, choose the `server/` directory as the root. The provided `postinstall` script automatically installs the frontend dependencies and builds the production bundle.
-3. Leave the install and start commands as their defaults (`npm install`, `npm start`). The Express server serves the compiled `frontend/dist` assets directly, so no extra static hosting is required.
-4. Add the required environment variables in the Railway dashboard (`REPLICATE_API_TOKEN`, `XAI_API_KEY`, optional `FAL_KEY`, `GEMINI_API_KEY`, etc.). Railway will inject `PORT`, which the server already honours.
-5. Deploy the service. Once the build completes, the same URL will host the API (`/api/...`) and the React client.
+Have fun remixing Seedream prompts! Pull requests are welcome—especially to bring back fal.ai editing support or expand per-user settings.

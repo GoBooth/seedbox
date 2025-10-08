@@ -1,7 +1,8 @@
-import { ensureGrokConfig, error, ok } from "../_utils";
+import { ensureGrokConfig, error, getUserFromRequest, ok } from "../_utils";
 
 export const onRequestPost = async ({ request, env }: { request: Request; env: any }) => {
   try {
+    await getUserFromRequest(request, env);
     const payload = await request.json()
       .catch(() => null) as { prompt?: string; fields?: Record<string, string> } | null;
 
@@ -70,7 +71,10 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
     }
   } catch (err) {
     console.error("Advanced blueprint generation failed", err);
+    const status = err instanceof Error && (err as Error & { status?: number }).status
+      ? (err as Error & { status?: number }).status!
+      : 500;
     const message = err instanceof Error ? err.message : "Unable to generate blueprint prompts";
-    return error(message, 500);
+    return error(message, status);
   }
 };

@@ -1,8 +1,18 @@
-import { error, ok, resolveModelIdentifier, runReplicatePrediction } from "../_utils";
+import {
+  error,
+  getUserFromRequest,
+  ok,
+  resolveModelIdentifier,
+  runReplicatePrediction,
+} from "../_utils";
 
 export const onRequestPost = async ({ request, env }: { request: Request; env: any }) => {
   try {
-    const payload = await request.json().catch(() => null) as { prompt?: string; aspect_ratio?: string } | null;
+    await getUserFromRequest(request, env);
+    const payload = (await request.json().catch(() => null)) as {
+      prompt?: string;
+      aspect_ratio?: string;
+    } | null;
     const prompt = payload?.prompt?.toString().trim() || "";
     const aspectRatio = payload?.aspect_ratio?.toString() || "match_input_image";
 
@@ -25,7 +35,10 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
     });
   } catch (err) {
     console.error("Seedream demo failed", err);
+    const status = err instanceof Error && (err as Error & { status?: number }).status
+      ? (err as Error & { status?: number }).status!
+      : 500;
     const message = err instanceof Error ? err.message : "Unable to reach Replicate";
-    return error(message, 500);
+    return error(message, status);
   }
 };

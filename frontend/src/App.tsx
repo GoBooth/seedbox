@@ -9,6 +9,8 @@ import {
 } from "react";
 import "./App.css";
 import { buildApiUrl } from "./lib/api";
+import { supabase } from "./lib/supabaseClient";
+import type { Session } from "@supabase/supabase-js";
 
 type UploadedImage = {
   id: string;
@@ -93,7 +95,18 @@ const providerOptions = [
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
+type UserSettings = {
+  preferredProviders: string[];
+  sizeOption: string;
+  aspectRatio: string;
+};
+
 const INSTRUCTION_STORAGE_KEY = "seedream.instructions";
+const DEFAULT_USER_SETTINGS: UserSettings = {
+  preferredProviders: ["replicate"],
+  sizeOption: "2K",
+  aspectRatio: "match_input_image",
+};
 
 type SeedreamGuideline = {
   title: string;
@@ -190,6 +203,20 @@ const fileToDataUri = (file: File): Promise<{ dataUri: string; contentType: stri
   });
 
 export default function App() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authMode, setAuthMode] = useState<"signIn" | "signUp">("signIn");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authSubmitting, setAuthSubmitting] = useState(false);
+  const [authErrorMessage, setAuthErrorMessage] = useState<string | null>(null);
+  const [authInfoMessage, setAuthInfoMessage] = useState<string | null>(null);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const settingsInitializedRef = useRef(false);
+
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
   const [selectedProviders, setSelectedProviders] = useState<string[]>(() => {
@@ -429,6 +456,153 @@ export default function App() {
 
   const getProviderLabel = (value: string) =>
     providerOptions.find((option) => option.value === value)?.label || value;
+
+  const applySettings = (settings: Partial<UserSettings>) => {
+    if (Array.isArray(settings.preferredProviders) && settings.preferredProviders.length) {
+      const filtered = settings.preferredProviders.filter((provider) =>
+        providerOptions.some((option) => option.value === provider),
+      );
+      setSelectedProviders(filtered.length ? filtered : DEFAULT_USER_SETTINGS.preferredProviders);
+    }
+    if (typeof settings.sizeOption === "string" && settings.sizeOption.trim()) {
+      setSize(settings.sizeOption.trim());
+    }
+    if (typeof settings.aspectRatio === "string" && settings.aspectRatio.trim()) {
+      setAspectRatio(settings.aspectRatio.trim());
+    }
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!isMounted) return;
+        setSession(data.session);
+        setAuthToken(data.session?.access_token ?? null);
+        setAuthLoading(false);
+      })
+      .catch((error) => {
+        console.error("Unable to load Supabase session", error);
+        if (isMounted) {
+          setAuthLoading(false);
+        }
+      });
+
+    const { data: subscriptionData } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+      setAuthToken(newSession?.access_token ?? null);
+      if (!newSession) {
+        setSettingsLoaded(false);
+        settingsInitializedRef.current = false;
+        setSelectedProviders(DEFAULT_USER_SETTINGS.preferredProviders);
+        setSize(DEFAULT_USER_SETTINGS.sizeOption);
+        setAspectRatio(DEFAULT_USER_SETTINGS.aspectRatio);
+        setImages([]);
+        setResults([]);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscriptionData.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!authToken) {
+      setSettingsLoaded(false);
+      setSettingsError(null);
+      settingsInitializedRef.current = false;
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadSettings = async () => {
+      try {
+        const response = await fetch(buildApiUrl("/api/settings"), {
+          headers: { Authorization: `Bearer ${authToken}` },
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload?.error || response.statusText || "Unable to load settings");
+        }
+        if (cancelled) {
+          return;
+        }
+        settingsInitializedRef.current = false;
+        applySettings(payload as Partial<UserSettings>);
+        setSettingsLoaded(true);
+        setSettingsError(null);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        console.error("Failed to load settings", error);
+        setSettingsLoaded(true);
+        setSettingsError(error instanceof Error ? error.message : "Unable to load user settings");
+      }
+    };
+
+    loadSettings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authToken]);
+
+  useEffect(() => {
+    if (!authToken || !settingsLoaded) {
+      return;
+    }
+
+    if (!settingsInitializedRef.current) {
+      settingsInitializedRef.current = true;
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(async () => {
+      try {
+        setIsSavingSettings(true);
+        const response = await fetch(buildApiUrl("/api/settings"), {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({
+            preferredProviders: selectedProviders,
+            sizeOption: size,
+            aspectRatio,
+          }),
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload?.error || response.statusText || "Unable to save settings");
+        }
+        setSettingsError(null);
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+        console.error("Failed to save settings", error);
+        setSettingsError(error instanceof Error ? error.message : "Unable to save user settings");
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsSavingSettings(false);
+        }
+      }
+    }, 500);
+
+    return () => {
+      controller.abort();
+      clearTimeout(timeout);
+      setIsSavingSettings(false);
+    };
+  }, [authToken, settingsLoaded, selectedProviders, size, aspectRatio]);
 
   const closeAdvancedPrompt = () => {
     setShowAdvancedPrompt(false);
@@ -739,6 +913,55 @@ export default function App() {
     setInstructionClipboard(null);
   };
 
+  const handleAuthSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setAuthErrorMessage(null);
+    setAuthInfoMessage(null);
+
+    const email = authEmail.trim();
+    const password = authPassword.trim();
+
+    if (!email || !password) {
+      setAuthErrorMessage("Email and password are required.");
+      return;
+    }
+
+    setAuthSubmitting(true);
+    try {
+      if (authMode === "signUp") {
+        const { error: signUpError } = await supabase.auth.signUp({ email, password });
+        if (signUpError) {
+          throw signUpError;
+        }
+        setAuthInfoMessage("Check your inbox for a confirmation email, then sign in.");
+      } else {
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        if (signInError) {
+          throw signInError;
+        }
+        setAuthInfoMessage(null);
+      }
+      setAuthPassword("");
+    } catch (error) {
+      setAuthErrorMessage(error instanceof Error ? error.message : "Authentication failed.");
+    } finally {
+      setAuthSubmitting(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut();
+      setAuthEmail("");
+      setAuthPassword("");
+      setAuthInfoMessage(null);
+      setAuthErrorMessage(null);
+    } catch (error) {
+      console.error("Sign out failed", error);
+      setAuthErrorMessage(error instanceof Error ? error.message : "Unable to sign out");
+    }
+  };
+
   const handleSaveCharacter = async (image: UploadedImage) => {
     try {
       const defaultName = image.originalName.replace(/\.[^./\\]+$/, "");
@@ -937,9 +1160,16 @@ export default function App() {
         instruction: image.instruction,
       }));
 
+      const enhanceHeaders: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+      if (authToken) {
+        (enhanceHeaders as Record<string, string>).Authorization = `Bearer ${authToken}`;
+      }
+
       const response = await fetch(buildApiUrl("/api/enhance-prompt"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: enhanceHeaders,
         body: JSON.stringify({
           prompt,
           negativePrompt,
@@ -1034,9 +1264,14 @@ export default function App() {
 
     setIsImporting(true);
     try {
+      const importHeaders: HeadersInit = { "Content-Type": "application/json" };
+      if (authToken) {
+        (importHeaders as Record<string, string>).Authorization = `Bearer ${authToken}`;
+      }
+
       const response = await fetch(buildApiUrl("/api/import-image"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: importHeaders,
         body: JSON.stringify({ url: importUrl.trim() }),
       });
 
@@ -1127,10 +1362,15 @@ export default function App() {
         formData.append("images", image.file, serverFileName);
       });
 
-      const response = await fetch(buildApiUrl("/api/generate"), {
+      const requestOptions: RequestInit = {
         method: "POST",
         body: formData,
-      });
+      };
+      if (authToken) {
+        requestOptions.headers = { Authorization: `Bearer ${authToken}` };
+      }
+
+      const response = await fetch(buildApiUrl("/api/generate"), requestOptions);
 
       let payload: GenerationResponse | undefined;
       try {
@@ -1297,8 +1537,100 @@ export default function App() {
     }
   };
 
+  if (authLoading) {
+    return (
+      <div className="auth-screen">
+        <div className="auth-card">
+          <h1>Seedream Studio</h1>
+          <p>Checking authentication…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="auth-screen">
+        <div className="auth-card">
+          <h1>Seedream Studio</h1>
+          <p>Sign in with your email to continue.</p>
+          {authErrorMessage && <div className="auth-error">{authErrorMessage}</div>}
+          {authInfoMessage && <div className="auth-info">{authInfoMessage}</div>}
+          <form onSubmit={handleAuthSubmit} className="auth-form">
+            <label>
+              Email
+              <input
+                type="email"
+                value={authEmail}
+                onChange={(event) => setAuthEmail(event.target.value)}
+                required
+                autoComplete="email"
+              />
+            </label>
+            <label>
+              Password
+              <input
+                type="password"
+                value={authPassword}
+                onChange={(event) => setAuthPassword(event.target.value)}
+                required
+                autoComplete={authMode === "signUp" ? "new-password" : "current-password"}
+              />
+            </label>
+            <button type="submit" disabled={authSubmitting} className="auth-submit">
+              {authSubmitting
+                ? authMode === "signUp"
+                  ? "Creating account…"
+                  : "Signing in…"
+                : authMode === "signUp"
+                  ? "Create account"
+                  : "Sign in"}
+            </button>
+          </form>
+          <div className="auth-toggle">
+            {authMode === "signUp" ? (
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={() => {
+                  setAuthMode("signIn");
+                  setAuthErrorMessage(null);
+                  setAuthInfoMessage(null);
+                }}
+              >
+                Already have an account? Sign in
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={() => {
+                  setAuthMode("signUp");
+                  setAuthErrorMessage(null);
+                  setAuthInfoMessage(null);
+                }}
+              >
+                Need an account? Sign up
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell">
+      <div className="user-bar">
+        <div className="user-bar-info">
+          <span>{session.user?.email || session.user?.id}</span>
+          {isSavingSettings && <span className="settings-status">Saving settings…</span>}
+          {settingsError && <span className="settings-error">{settingsError}</span>}
+        </div>
+        <button type="button" className="ghost-button" onClick={handleSignOut}>
+          Sign out
+        </button>
+      </div>
       <header className="app-header">
         <h1>Seedream Studio</h1>
         <p>

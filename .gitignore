@@ -6,5 +6,6 @@ node_modules/
 frontend/dist/
 frontend/.vite/
 frontend/.wrangler/
+.wrangler/
 server/node_modules/
 frontend/node_modules/

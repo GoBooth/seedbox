@@ -3,6 +3,7 @@ import {
   ensureNanoBananaConfig,
   error,
   fileToDataUri,
+  getUserFromRequest,
   ok,
   resolveModelIdentifier,
   runReplicatePrediction,
@@ -112,6 +113,7 @@ const extractNanoBananaOutput = (payload: unknown): string[] => {
 
 export const onRequestPost = async ({ request, env }: { request: Request; env: any }) => {
   try {
+    const user = await getUserFromRequest(request, env);
     const formData = await request.formData();
 
     const provider = (formData.get("provider")?.toString().toLowerCase() || "replicate") as
@@ -182,7 +184,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
       const note = instructionEntry?.instruction?.toString().trim() || "";
 
       const { buffer, dataUri } = await fileToDataUri(file);
-      const r2Key = `uploads/${Date.now()}-${serverFileName}`;
+      const r2Key = `users/${user.id}/uploads/${Date.now()}-${serverFileName}`;
       await env.UPLOADS_BUCKET.put(r2Key, buffer, {
         httpMetadata: { contentType: file.type || "application/octet-stream" },
       });
@@ -318,7 +320,10 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
     });
   } catch (err) {
     console.error("Generation failed", err);
+    const status = err instanceof Error && (err as Error & { status?: number }).status
+      ? (err as Error & { status?: number }).status!
+      : 500;
     const message = err instanceof Error ? err.message : "Generation request failed";
-    return error(message, 500);
+    return error(message, status);
   }
 };

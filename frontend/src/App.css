@@ -158,6 +158,132 @@ h2 .tag {
   color: #1e293b;
 }
 
+.auth-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: linear-gradient(135deg, #e0f2fe 0%, #f8fafc 100%);
+}
+
+.auth-card {
+  background: #ffffff;
+  padding: 40px 32px;
+  border-radius: 24px;
+  box-shadow: 0 32px 64px rgba(15, 23, 42, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+}
+
+.auth-card h1 {
+  margin-bottom: 12px;
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+}
+
+.auth-card p {
+  margin: 0 0 20px 0;
+  color: #475569;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: left;
+}
+
+.auth-form label {
+  font-weight: 600;
+  color: #1e293b;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.auth-form input {
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  border-radius: 12px;
+  padding: 12px;
+  font-size: 1rem;
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.auth-form input:focus {
+  outline: 2px solid rgba(59, 130, 246, 0.35);
+}
+
+.auth-submit {
+  margin-top: 8px;
+  border: none;
+  border-radius: 999px;
+  padding: 12px 18px;
+  font-weight: 600;
+  font-size: 1rem;
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  color: #ffffff;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.auth-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.auth-submit:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(59, 130, 246, 0.35);
+}
+
+.auth-toggle {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+.auth-error {
+  margin-bottom: 12px;
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.auth-info {
+  margin-bottom: 12px;
+  color: #1d4ed8;
+  font-weight: 500;
+}
+
+.user-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.user-bar-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  color: #0f172a;
+  font-weight: 500;
+}
+
+.settings-status {
+  font-size: 0.85rem;
+  color: #2563eb;
+}
+
+.settings-error {
+  font-size: 0.85rem;
+  color: #dc2626;
+}
+
 .remove-button {
   border: none;
   background: rgba(248, 113, 113, 0.18);

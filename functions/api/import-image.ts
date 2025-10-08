@@ -2,11 +2,13 @@ import {
   MAX_REMOTE_IMPORT_SOURCE_BYTES,
   arrayBufferToBase64,
   error,
+  getUserFromRequest,
   ok,
 } from "../_utils";
 
 export const onRequestPost = async ({ request, env }: { request: Request; env: any }) => {
   try {
+    const user = await getUserFromRequest(request, env);
     const payload = (await request
       .json()
       .catch(() => null)) as { url?: string } | null;
@@ -30,7 +32,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
       return error("Remote image is too large to process", 413);
     }
 
-    const key = `remote/${Date.now()}-${crypto.randomUUID()}`;
+    const key = `users/${user.id}/remote/${Date.now()}-${crypto.randomUUID()}`;
     await env.UPLOADS_BUCKET.put(key, arrayBuffer, {
       httpMetadata: { contentType },
     });
@@ -49,6 +51,9 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
     });
   } catch (err) {
     console.error("Import image failed", err);
-    return error("Unable to import remote image", 500);
+    const status = err instanceof Error && (err as Error & { status?: number }).status
+      ? (err as Error & { status?: number }).status!
+      : 500;
+    return error("Unable to import remote image", status);
   }
 };
