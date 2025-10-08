@@ -2,6 +2,7 @@ node_modules/
 *.log
 .env
 .env.local
+.dev.vars
 .DS_Store
 frontend/dist/
 frontend/.vite/

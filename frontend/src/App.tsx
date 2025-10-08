@@ -108,6 +108,8 @@ const DEFAULT_USER_SETTINGS: UserSettings = {
   aspectRatio: "match_input_image",
 };
 
+const BUILD_VERSION = import.meta.env.VITE_BUILD_VERSION || "dev";
+
 type SeedreamGuideline = {
   title: string;
   summary: string;
@@ -540,8 +542,15 @@ export default function App() {
           return;
         }
         console.error("Failed to load settings", error);
+        applySettings(DEFAULT_USER_SETTINGS);
         setSettingsLoaded(true);
-        setSettingsError(error instanceof Error ? error.message : "Unable to load user settings");
+        if (error instanceof Error && /user_settings/i.test(error.message)) {
+          setSettingsError(
+            "Settings table missing. Run the Supabase migration for public.user_settings to persist preferences.",
+          );
+        } else {
+          setSettingsError(error instanceof Error ? error.message : "Unable to load user settings");
+        }
       }
     };
 
@@ -2317,6 +2326,10 @@ export default function App() {
           )}
         </div>
       </aside>
+
+      <footer className="build-info" aria-label="Build information">
+        Build {BUILD_VERSION}
+      </footer>
 
       {lightboxIndex !== null && results[lightboxIndex] && (
         <div

@@ -57,6 +57,8 @@ VITE_SUPABASE_URL=https://rqmqkaixkrnogqcdvpiu.supabase.co
 VITE_SUPABASE_ANON_KEY=ey...
 ```
 
+> The build script automatically stamps each build with `0.<commit-count>-<short-sha>` and passes it to Vite as `VITE_BUILD_VERSION`, so you don't need to set it manually.
+
 In Cloudflare Pages add the same variables (use **Secrets** for sensitive values like `SUPABASE_SERVICE_ROLE_KEY`, `REPLICATE_API_TOKEN`, and `XAI_API_KEY`). Make sure the R2 binding is called **`UPLOADS_BUCKET`** to match the Worker code.
 
 ## Local development
@@ -69,9 +71,9 @@ In Cloudflare Pages add the same variables (use **Secrets** for sensitive values
 
 2. Run the full stack with Wrangler (serves the built client + functions):
    ```bash
-   wrangler pages dev frontend
+   wrangler pages dev
    ```
-   Wrangler runs the build command defined in `wrangler.toml` (`npm install --prefix frontend && npm run build --prefix frontend`) and mounts the functions in `functions/` on <http://127.0.0.1:8788>.
+   Wrangler runs the build command defined in `wrangler.toml` (`npm run build:frontend`) and mounts the functions in `functions/` on <http://127.0.0.1:8788>.
 
 3. Optional – run Vite with hot module replacement in a second terminal and point API calls back to Wrangler:
    ```bash
@@ -85,10 +87,11 @@ Uploads larger than 10 MB are rejected in the browser before they reach the Wo
 ## Deployment
 
 1. Push the repository to GitHub and connect it to a Cloudflare Pages project.
-2. In the Pages build settings use:
-   - **Build command**: `npm install --prefix frontend && npm run build --prefix frontend`
+2. In the Pages build settings set:
+   - **Build command**: `npm run build:frontend`
    - **Build output directory**: `frontend/dist`
    - **Functions directory**: `functions`
+   > The build script computes a monotonically increasing version (`0.<commit-count>-<short-sha>`) and exposes it to Vite as `VITE_BUILD_VERSION` before bundling.
 3. In Pages → Settings → Environment variables add the same variables you defined in `.dev.vars` (Production and Preview). Include both the Workers secrets (`SUPABASE_SERVICE_ROLE_KEY`, `REPLICATE_API_TOKEN`, etc.) and the Vite build variables (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`).
 4. In the same settings screen add the R2 binding: name **`UPLOADS_BUCKET`** and point it at your bucket (e.g., `seedream-uploads`).
 5. Push commits to the tracked branch (`git push`). Pages will rebuild automatically and deploy the new static assets + Workers bundle.

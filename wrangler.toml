@@ -5,11 +5,11 @@ pages_build_output_dir = "./frontend/dist"
 pages_functions_directory = "./functions"
 
 [build]
-command = "npm install --prefix frontend && npm run build --prefix frontend"
+command = "npm run build:frontend"
 
 [[r2_buckets]]
-binding = "UPLOADS_BUCKET"      # must match the binding name in the dashboard
-bucket_name = "seedream-uploads" # the actual R2 bucket name
+binding = "UPLOADS_BUCKET"
+bucket_name = "seedream-uploads"
 
 [vars]
 NODE_ENV = "production"

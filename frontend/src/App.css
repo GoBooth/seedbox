@@ -284,6 +284,14 @@ h2 .tag {
   color: #dc2626;
 }
 
+.build-info {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #475569;
+  opacity: 0.85;
+}
+
 .remove-button {
   border: none;
   background: rgba(248, 113, 113, 0.18);
