@@ -42,6 +42,7 @@ Create a `.dev.vars` file in the project root for local development:
 
 ```env
 # Cloudflare / Providers
+FAIAI_API_TOKEN=sk-...
 REPLICATE_API_TOKEN=sk-...
 XAI_API_KEY=sk-...
 GEMINI_API_KEY=AIza...
@@ -71,9 +72,9 @@ In Cloudflare Pages add the same variables (use **Secrets** for sensitive values
 
 2. Run the full stack with Wrangler (serves the built client + functions):
    ```bash
-   wrangler pages dev
+   npm run dev:pages
    ```
-   Wrangler runs the build command defined in `wrangler.toml` (`npm run build:frontend`) and mounts the functions in `functions/` on <http://127.0.0.1:8788>.
+   The script builds the frontend (stamping `VITE_BUILD_VERSION`) and then launches Wrangler so everything is served from <http://127.0.0.1:8788>.
 
 3. Optional – run Vite with hot module replacement in a second terminal and point API calls back to Wrangler:
    ```bash
@@ -92,7 +93,7 @@ Uploads larger than 10 MB are rejected in the browser before they reach the Wo
    - **Build output directory**: `frontend/dist`
    - **Functions directory**: `functions`
    > The build script computes a monotonically increasing version (`0.<commit-count>-<short-sha>`) and exposes it to Vite as `VITE_BUILD_VERSION` before bundling.
-3. In Pages → Settings → Environment variables add the same variables you defined in `.dev.vars` (Production and Preview). Include both the Workers secrets (`SUPABASE_SERVICE_ROLE_KEY`, `REPLICATE_API_TOKEN`, etc.) and the Vite build variables (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`).
+3. In Pages → Settings → Environment variables add the same variables you defined in `.dev.vars` (Production and Preview). Include both the Workers secrets (`SUPABASE_SERVICE_ROLE_KEY`, `REPLICATE_API_TOKEN`, `FAIAI_API_TOKEN`, etc.) and the Vite build variables (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`).
 4. In the same settings screen add the R2 binding: name **`UPLOADS_BUCKET`** and point it at your bucket (e.g., `seedream-uploads`).
 5. Push commits to the tracked branch (`git push`). Pages will rebuild automatically and deploy the new static assets + Workers bundle.
 

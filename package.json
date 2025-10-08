@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:frontend": "node scripts/build-with-version.mjs"
+    "build:frontend": "node scripts/build-with-version.mjs",
+    "dev:pages": "npm run build:frontend && wrangler pages dev ./frontend/dist"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0"

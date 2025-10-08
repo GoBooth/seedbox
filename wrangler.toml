@@ -4,9 +4,6 @@ compatibility_date = "2025-01-01"
 pages_build_output_dir = "./frontend/dist"
 pages_functions_directory = "./functions"
 
-[build]
-command = "npm run build:frontend"
-
 [[r2_buckets]]
 binding = "UPLOADS_BUCKET"
 bucket_name = "seedream-uploads"

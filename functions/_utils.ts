@@ -9,6 +9,7 @@ export interface Env {
   SEEDREAM4_MODEL_VERSION?: string;
   SEEDREAM_MODEL_VERSION?: string;
   FAL_KEY?: string;
+  FAIAI_API_TOKEN?: string;
   FAL_MODEL?: string;
   XAI_API_KEY?: string;
   GROK_API_MODEL?: string;
@@ -165,7 +166,10 @@ export const runFalGeneration = async (
   model: string,
   input: Record<string, unknown>,
 ): Promise<string[]> => {
-  const token = requireEnv(env, "FAL_KEY");
+  const token = (env.FAIAI_API_TOKEN || env.FAL_KEY || "").trim();
+  if (!token) {
+    throw new Error("FAIAI_API_TOKEN (or FAL_KEY) is not configured.");
+  }
   const startResponse = await fetch(`https://api.fal.ai/${model}`, {
     method: "POST",
     headers: {
