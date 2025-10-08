@@ -127,3 +127,4 @@ All API routes require a valid Supabase access token (the React app attaches it 
 - **Uploads failing** – verify the R2 binding is named `UPLOADS_BUCKET` and the Cloudflare Pages environment has permission to write to the chosen bucket.
 
 Have fun remixing Seedream prompts! Pull requests are welcome—especially to bring back fal.ai editing support or expand per-user settings.
+
