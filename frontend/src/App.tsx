@@ -868,14 +868,14 @@ export default function App() {
     }
   };
 
-  const handleDrop = (event: DragEvent<HTMLLabelElement>) => {
+  const handleDrop = (event: DragEvent<HTMLDivElement | HTMLLabelElement>) => {
     event.preventDefault();
     if (event.dataTransfer.files) {
       addFiles(event.dataTransfer.files);
     }
   };
 
-  const handleDragOver = (event: DragEvent<HTMLLabelElement>) => {
+  const handleDragOver = (event: DragEvent<HTMLDivElement | HTMLLabelElement>) => {
     event.preventDefault();
   };
 
@@ -1654,28 +1654,35 @@ export default function App() {
             <span className="tag">Step 1</span>
             Reference images
           </h2>
-          <label
+          <div
             className="dropzone"
-            htmlFor="media-input"
+            role="button"
+            tabIndex={0}
             onDragOver={handleDragOver}
             onDrop={handleDrop}
             onClick={() => inputRef.current?.click()}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                inputRef.current?.click();
+              }
+            }}
           >
             <strong>Drop images here or click to browse</strong>
             <span>
               Supports PNG, JPG or WEBP. Larger files are automatically resized and compressed
               below 10MB.
             </span>
-            <input
-              ref={inputRef}
-              className="hidden-input"
-              id="media-input"
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handleFileChange}
-            />
-          </label>
+          </div>
+          <input
+            ref={inputRef}
+            className="hidden-input"
+            id="media-input"
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handleFileChange}
+          />
 
           {hasImages ? (
             <div className="media-grid" aria-live="polite">
