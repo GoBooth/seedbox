@@ -88,9 +88,10 @@ const PROMPT_LIBRARY_STORAGE_KEY = "seedream.prompts";
 
 const providerOptions = [
   { value: "replicate", label: "Replicate · Seedream-4" },
-  { value: "fal", label: "fal.ai · Seedream Edit" },
   { value: "nano-banana", label: "Nano Banana · Gemini Flash" },
 ];
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
 const INSTRUCTION_STORAGE_KEY = "seedream.instructions";
 
@@ -415,8 +416,6 @@ export default function App() {
   const [maxImages, setMaxImages] = useState<number>(computeDefaultMaxImages("disabled"));
   const [customWidth, setCustomWidth] = useState<number>(2048);
   const [customHeight, setCustomHeight] = useState<number>(2048);
-  const [falSeed, setFalSeed] = useState<string>("");
-  const [falSyncMode, setFalSyncMode] = useState<boolean>(false);
   const [showAdvancedPrompt, setShowAdvancedPrompt] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
@@ -427,7 +426,6 @@ export default function App() {
   const hasImages = images.length > 0;
   const isCustomSize = size === "custom";
   const isSequentialAuto = sequentialMode === "auto";
-  const falSelected = activeProviders.includes("fal");
 
   const getProviderLabel = (value: string) =>
     providerOptions.find((option) => option.value === value)?.label || value;
@@ -640,20 +638,42 @@ export default function App() {
     const incoming = Array.from(fileList);
     if (!incoming.length) return;
 
+    let rejected = false;
+    const sizeFiltered = incoming.filter((file) => {
+      if (file.size <= MAX_FILE_SIZE) {
+        return true;
+      }
+      rejected = true;
+      return false;
+    });
+
+    if (rejected) {
+      setErrorMessage("Each reference image must be 10MB or smaller.");
+    }
+
+    if (!sizeFiltered.length) {
+      return;
+    }
+
     setImages((previous) => {
-      const deduplicated = incoming.filter((file) => {
-        return !previous.some(
+      const deduplicated = sizeFiltered.filter((file) =>
+        !previous.some(
           (existing) =>
             existing.file.name === file.name &&
             existing.file.size === file.size &&
-            existing.file.lastModified === file.lastModified
-        );
-      });
-
-      const mapped = deduplicated.map((file) =>
-        createUploadedImage(file, instructionStore)
+            existing.file.lastModified === file.lastModified,
+        ),
       );
 
+      if (!deduplicated.length) {
+        return previous;
+      }
+
+      const mapped = deduplicated.map((file) =>
+        createUploadedImage(file, instructionStore),
+      );
+
+      setErrorMessage(null);
       return [...previous, ...mapped];
     });
   };
@@ -1102,13 +1122,6 @@ export default function App() {
         formData.append("height", String(customHeight));
       }
 
-      if (provider === "fal") {
-        if (falSeed.trim().length) {
-          formData.append("fal_seed", falSeed.trim());
-        }
-        formData.append("fal_sync_mode", String(falSyncMode));
-      }
-
       selectedImages.forEach((image) => {
         const serverFileName = `${image.id}__${image.originalName}`;
         formData.append("images", image.file, serverFileName);
@@ -1537,50 +1550,9 @@ export default function App() {
                     })}
                   </div>
                   <span className="field-hint">
-                    Replicate handles full generations; fal.ai focuses on Seedream edits; Nano Banana taps Google Gemini for concept renders (references optional).
+                    Replicate handles full generations; Nano Banana taps Google Gemini for concept renders (references optional).
                   </span>
                 </div>
-
-                {falSelected && (
-                  <>
-                    <label>
-                      <span>fal.ai seed</span>
-                      <input
-                        type="number"
-                        min={0}
-                        step={1}
-                        placeholder="Random"
-                        value={falSeed}
-                        onChange={(event) => {
-                          const { value } = event.target;
-                          if (value === "") {
-                            setFalSeed("");
-                            return;
-                          }
-                          const normalized = value.replace(/[^0-9]/g, "");
-                          setFalSeed(normalized);
-                        }}
-                      />
-                      <span className="field-hint">
-                        Set a deterministic seed for repeatable fal.ai generations.
-                      </span>
-                    </label>
-                    <div className="settings-field">
-                      <span>fal.ai sync mode</span>
-                      <label className="checkbox-inline">
-                        <input
-                          type="checkbox"
-                          checked={falSyncMode}
-                          onChange={(event) => setFalSyncMode(event.target.checked)}
-                        />
-                        <span>Wait for fal.ai to upload images before completing the request.</span>
-                      </label>
-                      <span className="field-hint">
-                        Enable when you need direct image URLs in the API response (adds latency).
-                      </span>
-                    </div>
-                  </>
-                )}
 
                 {instructionClipboard && (
                   <div className="clipboard-banner">

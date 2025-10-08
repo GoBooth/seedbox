@@ -27,7 +27,7 @@ server/     # Express API proxy with Replicate integration
 
 ## Getting started
 
-1. **Install dependencies**
+1. **Install dependencies** (Node.js 20 or newer)
 
    ```bash
    cd frontend && npm install

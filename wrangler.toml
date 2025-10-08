@@ -1,0 +1,15 @@
+name = "ancient-grass-71e3"
+compatibility_date = "2025-01-01"
+
+[pages]
+functions = "./functions"
+build_output_dir = "./frontend/dist"
+build_command = "npm install --prefix frontend && npm run build --prefix frontend"
+
+[[r2_buckets]]
+binding = "UPLOADS_BUCKET"      # must match the binding name in the dashboard
+bucket_name = "seedream-uploads" # the actual R2 bucket name
+
+[vars]
+NODE_ENV = "production"
+ENABLE_GEMINI = "true"
