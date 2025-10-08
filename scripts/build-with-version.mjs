@@ -41,5 +41,5 @@ const sharedEnv = {
   VITE_BUILD_VERSION: buildVersion,
 };
 
-run('npm install --prefix frontend', sharedEnv);
+run('npm install --prefix frontend --include=dev', sharedEnv);
 run('npm run build --prefix frontend', sharedEnv);
