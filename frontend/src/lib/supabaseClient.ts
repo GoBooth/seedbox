@@ -1,7 +1,51 @@
 import { createClient } from '@supabase/supabase-js';
 
-const url = import.meta.env.VITE_SUPABASE_URL?.trim();
-const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
+type SeedboxRuntimeConfig = {
+  url?: string | null;
+  supabaseUrl?: string | null;
+  anonKey?: string | null;
+  supabaseAnonKey?: string | null;
+  VITE_SUPABASE_URL?: string | null;
+  VITE_SUPABASE_ANON_KEY?: string | null;
+};
+
+const getRuntimeConfig = (): SeedboxRuntimeConfig | null => {
+  if (typeof globalThis === 'undefined') {
+    return null;
+  }
+
+  const raw = (globalThis as Record<string, unknown>).__SEEDBOX_SUPABASE__;
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+
+  return raw as SeedboxRuntimeConfig;
+};
+
+const runtimeConfig = getRuntimeConfig();
+
+const pickValue = (...candidates: (string | null | undefined)[]) => {
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim().length > 0) {
+      return candidate.trim();
+    }
+  }
+  return undefined;
+};
+
+const url = pickValue(
+  import.meta.env.VITE_SUPABASE_URL,
+  runtimeConfig?.VITE_SUPABASE_URL,
+  runtimeConfig?.url,
+  runtimeConfig?.supabaseUrl,
+);
+
+const anonKey = pickValue(
+  import.meta.env.VITE_SUPABASE_ANON_KEY,
+  runtimeConfig?.VITE_SUPABASE_ANON_KEY,
+  runtimeConfig?.anonKey,
+  runtimeConfig?.supabaseAnonKey,
+);
 
 export const isSupabaseConfigured = Boolean(url && anonKey);
 
