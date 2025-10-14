@@ -227,16 +227,8 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
           maxImages,
         );
 
-        const legacyCandidates = references.length
-          ? ["models/imagen-3.0-edit", "models/imagen-3.0-generate"]
-          : ["models/imagen-3.0-generate"];
         const candidateModels = Array.from(
-          new Set([
-            primaryModel,
-            defaultGenerateModel,
-            defaultEditModel,
-            ...legacyCandidates,
-          ].filter(Boolean)),
+          new Set([primaryModel, defaultGenerateModel, defaultEditModel].filter(Boolean)),
         );
 
         let payload: unknown = null;
@@ -264,7 +256,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
           }
 
           const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/${candidate}:generateContent?key=${apiKey}`,
+            `https://generativelanguage.googleapis.com/v1/models/${candidate}:generateContent?key=${apiKey}`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },

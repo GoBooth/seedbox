@@ -260,7 +260,14 @@ export const ensureNanoBananaConfig = (env: Env) => {
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY is not configured.");
   }
-  const model = env.NANO_BANANA_MODEL?.trim();
+  let model = env.NANO_BANANA_MODEL?.trim();
+  if (model && model.startsWith("models/imagen-3.0")) {
+    console.warn(
+      `Legacy Nano Banana model '${model}' detected; upgrading to gemini-2.5-flash-image. ` +
+        "Set NANO_BANANA_MODEL explicitly if you need a different Gemini image model.",
+    );
+    model = "gemini-2.5-flash-image";
+  }
   return {
     apiKey: apiKey.trim(),
     model,

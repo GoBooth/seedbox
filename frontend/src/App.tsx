@@ -9,7 +9,7 @@ import {
 } from "react";
 import "./App.css";
 import { buildApiUrl } from "./lib/api";
-import { supabase } from "./lib/supabaseClient";
+import { supabase, isSupabaseConfigured } from "./lib/supabaseClient";
 import type { Session } from "@supabase/supabase-js";
 
 type UploadedImage = {
@@ -109,6 +109,8 @@ const DEFAULT_USER_SETTINGS: UserSettings = {
 };
 
 const BUILD_VERSION = import.meta.env.VITE_BUILD_VERSION || "dev";
+const MISSING_SUPABASE_MESSAGE =
+  "Supabase credentials are missing. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your frontend configuration.";
 
 type SeedreamGuideline = {
   title: string;
@@ -476,6 +478,10 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (!isSupabaseConfigured) {
+      setAuthErrorMessage(MISSING_SUPABASE_MESSAGE);
+    }
+
     let isMounted = true;
     supabase.auth
       .getSession()
@@ -968,7 +974,11 @@ export default function App() {
       setAuthErrorMessage(null);
     } catch (error) {
       console.error("Sign out failed", error);
-      setAuthErrorMessage(error instanceof Error ? error.message : "Unable to sign out");
+      if (!isSupabaseConfigured) {
+        setAuthErrorMessage(MISSING_SUPABASE_MESSAGE);
+      } else {
+        setAuthErrorMessage(error instanceof Error ? error.message : "Unable to sign out");
+      }
     }
   };
 
@@ -1578,6 +1588,7 @@ export default function App() {
                 onChange={(event) => setAuthEmail(event.target.value)}
                 required
                 autoComplete="email"
+                disabled={authSubmitting}
               />
             </label>
             <label>
@@ -1588,9 +1599,14 @@ export default function App() {
                 onChange={(event) => setAuthPassword(event.target.value)}
                 required
                 autoComplete={authMode === "signUp" ? "new-password" : "current-password"}
+                disabled={authSubmitting}
               />
             </label>
-            <button type="submit" disabled={authSubmitting} className="auth-submit">
+            <button
+              type="submit"
+              disabled={authSubmitting}
+              className="auth-submit"
+            >
               {authSubmitting
                 ? authMode === "signUp"
                   ? "Creating account…"
@@ -1607,8 +1623,10 @@ export default function App() {
                 className="ghost-button"
                 onClick={() => {
                   setAuthMode("signIn");
-                  setAuthErrorMessage(null);
-                  setAuthInfoMessage(null);
+                  setAuthErrorMessage(isSupabaseConfigured ? null : MISSING_SUPABASE_MESSAGE);
+                  if (isSupabaseConfigured) {
+                    setAuthInfoMessage(null);
+                  }
                 }}
               >
                 Already have an account? Sign in
@@ -1619,8 +1637,10 @@ export default function App() {
                 className="ghost-button"
                 onClick={() => {
                   setAuthMode("signUp");
-                  setAuthErrorMessage(null);
-                  setAuthInfoMessage(null);
+                  setAuthErrorMessage(isSupabaseConfigured ? null : MISSING_SUPABASE_MESSAGE);
+                  if (isSupabaseConfigured) {
+                    setAuthInfoMessage(null);
+                  }
                 }}
               >
                 Need an account? Sign up
