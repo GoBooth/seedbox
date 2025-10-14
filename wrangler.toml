@@ -11,5 +11,3 @@ bucket_name = "seedream-uploads"
 [vars]
 NODE_ENV = "production"
 ENABLE_GEMINI = "true"
-VITE_SUPABASE_URL = "https://rqmqkaixkrnogqcdvpiu.supabase.co"
-VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxbXFrYWl4a3Jub2dxY2R2cGl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk4OTYwNTksImV4cCI6MjA3NTQ3MjA1OX0.fM9SWt1iqvqp7t8dHFFAPUwbB1ZFB5uFbsNb3mdElAw"
